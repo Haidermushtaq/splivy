@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../groups/groups_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -19,9 +20,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return Scaffold(
       backgroundColor: _bg,
       appBar: _buildAppBar(),
-      body: _currentIndex == 0
-          ? _HomeTab()
-          : _PlaceholderTab(label: _tabLabel(_currentIndex)),
+      body: _buildBody(),
       bottomNavigationBar: _buildBottomNav(),
     );
   }
@@ -74,6 +73,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             icon: Icon(Icons.person_outline), label: 'Profile'),
       ],
     );
+  }
+
+  Widget _buildBody() {
+    switch (_currentIndex) {
+      case 0:
+        return _HomeTab();
+      case 1:
+        return const GroupsScreen();
+      default:
+        return _PlaceholderTab(label: _tabLabel(_currentIndex));
+    }
   }
 
   String _tabLabel(int index) {
