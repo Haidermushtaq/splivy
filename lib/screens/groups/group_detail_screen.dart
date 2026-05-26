@@ -130,7 +130,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const AddExpenseScreen()),
+          MaterialPageRoute(
+            builder: (_) => AddExpenseScreen(
+              groupId: widget.group.name.toLowerCase().replaceAll(' ', '_'),
+              groupName: widget.group.name,
+            ),
+          ),
         ),
         backgroundColor: _accent,
         icon: const Icon(Icons.add, color: Colors.black),
