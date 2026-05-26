@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../groups/groups_screen.dart';
 import '../friends/friends_screen.dart';
 import '../profile/profile_screen.dart';
+import '../settle/settle_up_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -255,7 +256,10 @@ class _QuickActions extends StatelessWidget {
         _ActionButton(
           icon: Icons.check_circle_outline,
           label: 'Settle Up',
-          onTap: () {},
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(
+                builder: (_) => const SettleUpScreen()),
+          ),
         ),
         _ActionButton(
           icon: Icons.person_add_outlined,

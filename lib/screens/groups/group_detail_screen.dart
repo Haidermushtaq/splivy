@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'groups_screen.dart';
 import '../expenses/add_expense_screen.dart';
+import '../settle/settle_up_screen.dart';
 
 class _Member {
   final String name;
@@ -261,7 +262,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ),
           const SizedBox(height: 16),
           OutlinedButton(
-            onPressed: () {},
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => SettleUpScreen(
+                    groupId: widget.group.name),
+              ),
+            ),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: _accent),
               shape: RoundedRectangleBorder(
