@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../groups/groups_screen.dart';
 import '../friends/friends_screen.dart';
+import '../profile/profile_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -84,6 +85,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return const GroupsScreen();
       case 2:
         return const FriendsScreen();
+      case 3:
+        return const ProfileScreen();
       default:
         return _PlaceholderTab(label: _tabLabel(_currentIndex));
     }
