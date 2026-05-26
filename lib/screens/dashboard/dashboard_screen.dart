@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../groups/groups_screen.dart';
+import '../friends/friends_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -81,6 +82,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return _HomeTab();
       case 1:
         return const GroupsScreen();
+      case 2:
+        return const FriendsScreen();
       default:
         return _PlaceholderTab(label: _tabLabel(_currentIndex));
     }
@@ -95,9 +98,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ── Home tab content ──────────────────────────────────────────────────────────
 
 class _HomeTab extends StatelessWidget {
-  static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
-
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -140,7 +140,7 @@ class _SummaryCard extends StatelessWidget {
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF00D4AA).withOpacity(0.15),
+            color: const Color(0xFF00D4AA).withValues(alpha: 0.15),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -239,9 +239,6 @@ class _BalanceStat extends StatelessWidget {
 }
 
 class _QuickActions extends StatelessWidget {
-  static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
-
   @override
   Widget build(BuildContext context) {
     return Row(
