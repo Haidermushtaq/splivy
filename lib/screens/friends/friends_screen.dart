@@ -4,7 +4,7 @@ import 'friend_detail_screen.dart';
 class _Friend {
   final String name;
   final String username;
-  final double balance; // positive = they owe you, negative = you owe them
+  final double balance;
   final String lastActivity;
 
   const _Friend({
@@ -17,29 +17,25 @@ class _Friend {
 
 const _dummyFriends = [
   _Friend(
-    name: 'Ali Khan',
-    username: 'ali_khan',
-    balance: 500,
-    lastActivity: '2 days ago',
-  ),
+      name: 'Ali Khan',
+      username: 'ali_khan',
+      balance: 500,
+      lastActivity: '2 days ago'),
   _Friend(
-    name: 'Mohsin Ashraf',
-    username: 'mohsin_a',
-    balance: -300,
-    lastActivity: '5 days ago',
-  ),
+      name: 'Mohsin Ashraf',
+      username: 'mohsin_a',
+      balance: -300,
+      lastActivity: '5 days ago'),
   _Friend(
-    name: 'Shumail Khan',
-    username: 'shumail_k',
-    balance: 0,
-    lastActivity: '1 week ago',
-  ),
+      name: 'Shumail Khan',
+      username: 'shumail_k',
+      balance: 0,
+      lastActivity: '1 week ago'),
   _Friend(
-    name: 'Haider Zahoor',
-    username: 'haider_z',
-    balance: 1200,
-    lastActivity: '3 days ago',
-  ),
+      name: 'Haider Zahoor',
+      username: 'haider_z',
+      balance: 1200,
+      lastActivity: '3 days ago'),
 ];
 
 class FriendsScreen extends StatefulWidget {
@@ -50,9 +46,7 @@ class FriendsScreen extends StatefulWidget {
 }
 
 class _FriendsScreenState extends State<FriendsScreen> {
-  static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
 
   final _searchController = TextEditingController();
   List<_Friend> _filtered = List.from(_dummyFriends);
@@ -76,7 +70,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
   void _showAddFriendSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: _cardDark,
+      backgroundColor: Theme.of(context).cardColor,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -87,25 +81,18 @@ class _FriendsScreenState extends State<FriendsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: _bg,
         elevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 20,
-        title: const Text(
-          'Friends',
-          style: TextStyle(
-              color: Colors.white,
-              fontSize: 20,
-              fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Friends'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () => FocusScope.of(context)
-                .requestFocus(FocusNode()), // handled by inline bar
+            icon: const Icon(Icons.search),
+            onPressed: () =>
+                FocusScope.of(context).requestFocus(FocusNode()),
           ),
           const SizedBox(width: 8),
         ],
@@ -115,7 +102,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
           _buildSearchBar(),
           Expanded(
             child: _filtered.isEmpty
-                ? _buildEmptyState()
+                ? _buildEmptyState(onSurface)
                 : _buildList(),
           ),
         ],
@@ -133,15 +120,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: TextField(
         controller: _searchController,
-        style: const TextStyle(color: Colors.white),
         onChanged: _onSearchChanged,
         decoration: InputDecoration(
           hintText: 'Search friends...',
-          hintStyle: const TextStyle(color: Colors.grey),
-          prefixIcon:
-              const Icon(Icons.search, color: Colors.grey, size: 20),
+          prefixIcon: const Icon(Icons.search, size: 20),
           filled: true,
-          fillColor: _cardDark,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
             borderSide: BorderSide.none,
@@ -170,8 +153,7 @@ class _FriendsScreenState extends State<FriendsScreen> {
           friend: friend,
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  FriendDetailScreen(name: friend.name),
+              builder: (_) => FriendDetailScreen(name: friend.name),
             ),
           ),
         );
@@ -179,18 +161,17 @@ class _FriendsScreenState extends State<FriendsScreen> {
     );
   }
 
-  Widget _buildEmptyState() {
+  Widget _buildEmptyState(Color onSurface) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.people_outline,
-              color: Colors.grey, size: 64),
+          const Icon(Icons.people_outline, color: Colors.grey, size: 64),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No friends yet.',
             style: TextStyle(
-                color: Colors.white,
+                color: onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.w600),
           ),
@@ -204,8 +185,8 @@ class _FriendsScreenState extends State<FriendsScreen> {
             onPressed: _showAddFriendSheet,
             style: ElevatedButton.styleFrom(
               backgroundColor: _accent,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 28, vertical: 12),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
@@ -228,7 +209,6 @@ class _FriendCard extends StatelessWidget {
   final VoidCallback onTap;
 
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
   static const _red = Color(0xFFFF6B6B);
 
   const _FriendCard({required this.friend, required this.onTap});
@@ -242,20 +222,19 @@ class _FriendCard extends StatelessWidget {
         : isOwed
             ? '+PKR ${friend.balance.toStringAsFixed(0)}'
             : '-PKR ${friend.balance.abs().toStringAsFixed(0)}';
-    final balanceColor =
-        isSettled ? Colors.grey : (isOwed ? _accent : _red);
+    final balanceColor = isSettled ? Colors.grey : (isOwed ? _accent : _red);
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Card(
-      color: _cardDark,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-              horizontal: 14, vertical: 12),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Row(
             children: [
               CircleAvatar(
@@ -277,8 +256,8 @@ class _FriendCard extends StatelessWidget {
                   children: [
                     Text(
                       friend.name,
-                      style: const TextStyle(
-                          color: Colors.white,
+                      style: TextStyle(
+                          color: onSurface,
                           fontWeight: FontWeight.bold,
                           fontSize: 15),
                     ),
@@ -331,7 +310,6 @@ class _AddFriendSheet extends StatefulWidget {
 }
 
 class _AddFriendSheetState extends State<_AddFriendSheet> {
-  static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
 
   final _controller = TextEditingController();
@@ -360,6 +338,8 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom + 16,
@@ -371,7 +351,6 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle bar
           Center(
             child: Container(
               width: 40,
@@ -383,10 +362,10 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
             ),
           ),
-          const Text(
+          Text(
             'Add Friend',
             style: TextStyle(
-                color: Colors.white,
+                color: onSurface,
                 fontWeight: FontWeight.bold,
                 fontSize: 20),
           ),
@@ -399,15 +378,13 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
           TextField(
             controller: _controller,
             autofocus: true,
-            style: const TextStyle(color: Colors.white),
+            style: TextStyle(color: onSurface),
             onChanged: _onChanged,
             decoration: InputDecoration(
               hintText: 'Enter email or @username',
-              hintStyle: const TextStyle(color: Colors.grey),
-              prefixIcon:
-                  const Icon(Icons.search, color: Colors.grey, size: 20),
+              prefixIcon: const Icon(Icons.search, size: 20),
               filled: true,
-              fillColor: _bg,
+              fillColor: scaffoldBg,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide.none,
@@ -418,8 +395,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: _accent, width: 1.5),
+                borderSide: const BorderSide(color: _accent, width: 1.5),
               ),
               contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 14),
@@ -427,7 +403,7 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
           ),
           if (_searched) ...[
             const SizedBox(height: 16),
-            _found ? _buildFoundCard() : _buildNotFound(),
+            _found ? _buildFoundCard(onSurface) : _buildNotFound(),
           ],
           const SizedBox(height: 20),
           SizedBox(
@@ -444,11 +420,11 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
     );
   }
 
-  Widget _buildFoundCard() {
+  Widget _buildFoundCard(Color onSurface) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E),
+        color: Theme.of(context).scaffoldBackgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
             color: const Color(0xFF00D4AA).withValues(alpha: 0.3)),
@@ -467,33 +443,31 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Test User',
                     style: TextStyle(
-                        color: Colors.white,
+                        color: onSurface,
                         fontWeight: FontWeight.bold,
                         fontSize: 14)),
-                SizedBox(height: 2),
-                Text('@test_user',
-                    style:
-                        TextStyle(color: Colors.grey, fontSize: 12)),
+                const SizedBox(height: 2),
+                const Text('@test_user',
+                    style: TextStyle(color: Colors.grey, fontSize: 12)),
               ],
             ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF00D4AA),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 8),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () {
               Navigator.of(context).pop();
-              // TODO: add to friend list via Supabase
             },
             child: const Text(
               'Add Friend',

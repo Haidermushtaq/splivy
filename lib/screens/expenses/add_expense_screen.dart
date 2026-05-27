@@ -33,17 +33,14 @@ class AddExpenseScreen extends StatefulWidget {
 }
 
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
-  static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
-  static const _fieldFill = Color(0xFF0A0A20);
 
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
 
   String _selectedCategory = 'Food';
-  int _selectedPayerIndex = 2; // "You" by default
+  int _selectedPayerIndex = 2;
   final List<bool> _splitSelected = List.filled(_members.length, true);
   bool _customExpenseNote = false;
 
@@ -81,7 +78,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
 
-    // TODO: save to Supabase
     _showSnackBar('Expense added!', isSuccess: true);
     Future.delayed(const Duration(milliseconds: 800), () {
       if (mounted) Navigator.of(context).pop();
@@ -100,14 +96,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   void _showGuestDialog() {
+    final cardColor = Theme.of(context).cardColor;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
+        backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Add Outside Person',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: Theme.of(ctx).colorScheme.onSurface,
+              fontWeight: FontWeight.bold),
         ),
         content: const Text(
           'How would you like to handle this?',
@@ -125,7 +124,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
-              // TODO: navigate to create group screen
             },
             child: const Text(
               'Create a new Group with them',
@@ -146,8 +144,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             },
             child: const Text(
               'Add as one-time custom expense',
-              style: TextStyle(
-                  color: Colors.black, fontWeight: FontWeight.bold),
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -161,10 +158,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.grey),
-      prefixIcon: Icon(prefixIcon, color: Colors.grey, size: 20),
+      prefixIcon: Icon(prefixIcon, size: 20),
       filled: true,
-      fillColor: _fieldFill,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -177,8 +172,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: _accent, width: 1.5),
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
 
@@ -196,16 +190,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: _bg,
         elevation: 0,
-        title: const Text(
-          'Add Expense',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Add Expense'),
         actions: [
           IconButton(
             icon: const Icon(Icons.check_rounded, color: _accent),
@@ -220,15 +209,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildExpenseDetailsSection(),
+              _buildExpenseDetailsSection(onSurface),
               const SizedBox(height: 24),
               _buildPaidBySection(),
               const SizedBox(height: 24),
-              _buildSplitSection(),
+              _buildSplitSection(onSurface),
               const SizedBox(height: 24),
-              _buildGuestSection(),
+              _buildGuestSection(onSurface),
               const SizedBox(height: 24),
-              _buildNoteSection(),
+              _buildNoteSection(onSurface),
               const SizedBox(height: 32),
               _buildSubmitButton(),
               const SizedBox(height: 24),
@@ -239,7 +228,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildExpenseDetailsSection() {
+  Widget _buildExpenseDetailsSection(Color onSurface) {
+    final cardColor = Theme.of(context).cardColor;
+    final fillColor = Theme.of(context).inputDecorationTheme.fillColor ??
+        const Color(0xFF0F3460);
     final selectedCat =
         _categories.firstWhere((c) => c.name == _selectedCategory);
     return Column(
@@ -249,7 +241,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _titleController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: onSurface),
           decoration: _fieldDecoration(
             hint: 'What was this expense for?',
             prefixIcon: Icons.edit_outlined,
@@ -258,12 +250,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _amountController,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           inputFormatters: [
             FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
           ],
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: onSurface),
           onChanged: (_) => setState(() {}),
           decoration: _fieldDecoration(
             hint: 'Amount in PKR',
@@ -274,7 +265,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           decoration: BoxDecoration(
-            color: _fieldFill,
+            color: fillColor,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -284,12 +275,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               Expanded(
                 child: DropdownButton<String>(
                   value: _selectedCategory,
-                  dropdownColor: _cardDark,
+                  dropdownColor: cardColor,
                   isExpanded: true,
                   underline: const SizedBox(),
-                  style: const TextStyle(color: Colors.white),
-                  icon: const Icon(Icons.keyboard_arrow_down,
-                      color: Colors.grey),
+                  style: TextStyle(color: onSurface),
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Colors.grey),
                   items: _categories.map((cat) {
                     return DropdownMenuItem<String>(
                       value: cat.name,
@@ -298,8 +288,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           Icon(cat.icon, color: _accent, size: 18),
                           const SizedBox(width: 10),
                           Text(cat.name,
-                              style:
-                                  const TextStyle(color: Colors.white)),
+                              style: TextStyle(color: onSurface)),
                         ],
                       ),
                     );
@@ -332,8 +321,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             itemBuilder: (_, index) {
               final isSelected = _selectedPayerIndex == index;
               return GestureDetector(
-                onTap: () =>
-                    setState(() => _selectedPayerIndex = index),
+                onTap: () => setState(() => _selectedPayerIndex = index),
                 child: Padding(
                   padding: const EdgeInsets.only(right: 16),
                   child: Column(
@@ -350,14 +338,13 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         ),
                         child: CircleAvatar(
                           radius: 26,
-                          backgroundColor:
-                              isSelected ? _accent : _cardDark,
+                          backgroundColor: isSelected
+                              ? _accent
+                              : Theme.of(context).cardColor,
                           child: Text(
                             _members[index][0].toUpperCase(),
                             style: TextStyle(
-                              color: isSelected
-                                  ? Colors.black
-                                  : Colors.white,
+                              color: isSelected ? Colors.black : Colors.grey,
                               fontWeight: FontWeight.bold,
                               fontSize: 18,
                             ),
@@ -386,7 +373,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildSplitSection() {
+  Widget _buildSplitSection(Color onSurface) {
     final splitAmt = _splitAmount;
     final selectedCount = _splitSelected.where((s) => s).length;
 
@@ -405,7 +392,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         const SizedBox(height: 14),
         Container(
           decoration: BoxDecoration(
-            color: _cardDark,
+            color: Theme.of(context).cardColor,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Column(
@@ -413,7 +400,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               final isLast = index == _members.length - 1;
               return Column(
                 children: [
-                  _buildMemberCheckRow(index),
+                  _buildMemberCheckRow(index, onSurface),
                   if (!isLast)
                     const Divider(
                         color: Colors.white12,
@@ -428,18 +415,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         if (splitAmt > 0) ...[
           const SizedBox(height: 12),
           Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 10),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
               color: _accent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: _accent.withValues(alpha: 0.3)),
+              border: Border.all(color: _accent.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
-                const Icon(Icons.calculate_outlined,
-                    color: _accent, size: 18),
+                const Icon(Icons.calculate_outlined, color: _accent, size: 18),
                 const SizedBox(width: 8),
                 Text(
                   'Each person pays: PKR ${splitAmt.toStringAsFixed(2)}',
@@ -451,8 +436,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                 const Spacer(),
                 Text(
                   '($selectedCount ${selectedCount == 1 ? 'person' : 'people'})',
-                  style: const TextStyle(
-                      color: Colors.grey, fontSize: 11),
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
                 ),
               ],
             ),
@@ -464,17 +448,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   Widget _splitChip(String label, {required bool active}) {
     return Container(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: active
-            ? _accent.withValues(alpha: 0.15)
-            : Colors.transparent,
+        color: active ? _accent.withValues(alpha: 0.15) : Colors.transparent,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: active
-              ? _accent
-              : Colors.grey.withValues(alpha: 0.3),
+          color: active ? _accent : Colors.grey.withValues(alpha: 0.3),
         ),
       ),
       child: Text(
@@ -482,21 +461,19 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         style: TextStyle(
           color: active ? _accent : Colors.grey,
           fontSize: 12,
-          fontWeight:
-              active ? FontWeight.bold : FontWeight.normal,
+          fontWeight: active ? FontWeight.bold : FontWeight.normal,
         ),
       ),
     );
   }
 
-  Widget _buildMemberCheckRow(int index) {
+  Widget _buildMemberCheckRow(int index, Color onSurface) {
     return InkWell(
-      onTap: () => setState(
-          () => _splitSelected[index] = !_splitSelected[index]),
+      onTap: () =>
+          setState(() => _splitSelected[index] = !_splitSelected[index]),
       borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(
@@ -515,8 +492,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             Expanded(
               child: Text(
                 _members[index],
-                style: const TextStyle(
-                    color: Colors.white, fontSize: 14),
+                style: TextStyle(color: onSurface, fontSize: 14),
               ),
             ),
             Checkbox(
@@ -526,8 +502,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               side: const BorderSide(color: Colors.grey),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(4)),
-              onChanged: (val) => setState(
-                  () => _splitSelected[index] = val ?? false),
+              onChanged: (val) =>
+                  setState(() => _splitSelected[index] = val ?? false),
             ),
           ],
         ),
@@ -535,7 +511,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildGuestSection() {
+  Widget _buildGuestSection(Color onSurface) {
+    final fillColor = Theme.of(context).inputDecorationTheme.fillColor ??
+        const Color(0xFF0F3460);
+    final cardColor = Theme.of(context).cardColor;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -548,10 +527,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           onTap: _showGuestDialog,
           borderRadius: BorderRadius.circular(12),
           child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             decoration: BoxDecoration(
-              color: _fieldFill,
+              color: fillColor,
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white12),
             ),
@@ -559,17 +538,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               children: [
                 CircleAvatar(
                   radius: 14,
-                  backgroundColor: _cardDark,
+                  backgroundColor: cardColor,
                   child: const Icon(Icons.person_add_outlined,
                       color: _accent, size: 16),
                 ),
                 const SizedBox(width: 12),
-                const Text('Add a guest',
-                    style:
-                        TextStyle(color: Colors.white, fontSize: 14)),
+                Text('Add a guest',
+                    style: TextStyle(color: onSurface, fontSize: 14)),
                 const Spacer(),
-                const Icon(Icons.chevron_right,
-                    color: Colors.grey, size: 20),
+                const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
               ],
             ),
           ),
@@ -581,19 +558,16 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
             decoration: BoxDecoration(
               color: Colors.amber.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: Colors.amber.withValues(alpha: 0.4)),
+              border: Border.all(color: Colors.amber.withValues(alpha: 0.4)),
             ),
             child: const Row(
               children: [
-                Icon(Icons.info_outline,
-                    color: Colors.amber, size: 16),
+                Icon(Icons.info_outline, color: Colors.amber, size: 16),
                 SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'This can be archived once settled.',
-                    style:
-                        TextStyle(color: Colors.amber, fontSize: 12),
+                    style: TextStyle(color: Colors.amber, fontSize: 12),
                   ),
                 ),
               ],
@@ -604,7 +578,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  Widget _buildNoteSection() {
+  Widget _buildNoteSection(Color onSurface) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -612,7 +586,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         const SizedBox(height: 12),
         TextField(
           controller: _noteController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: onSurface),
           maxLines: 2,
           decoration: _fieldDecoration(
             hint: 'Add a note (optional)',

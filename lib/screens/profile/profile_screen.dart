@@ -1,46 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import '../../app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/theme_provider.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
-  static const _bg = Color(0xFF1A1A2E);
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
 
-  bool _isDark = true;
   int _reminderHours = 24;
 
-  @override
-  void initState() {
-    super.initState();
-    _loadThemePref();
-  }
-
-  Future<void> _loadThemePref() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (mounted) {
-      setState(() => _isDark = prefs.getBool('isDarkMode') ?? true);
-    }
-  }
-
-  Future<void> _toggleTheme(bool isDark) async {
-    setState(() => _isDark = isDark);
-    themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDark);
+  void _toggleTheme(bool isDark) {
+    ref.read(themeProvider.notifier).state =
+        isDark ? ThemeMode.dark : ThemeMode.light;
+    saveThemePreference(isDark);
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = ref.watch(themeProvider) == ThemeMode.dark;
+    final cs = Theme.of(context).colorScheme;
+    final cardColor = Theme.of(context).cardColor;
+
     return Scaffold(
-      backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.only(bottom: 32),
@@ -48,13 +34,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               const SizedBox(height: 28),
-              _buildAvatarSection(),
+              _buildAvatarSection(cs),
               const SizedBox(height: 24),
-              _buildStatsRow(),
+              _buildStatsRow(cardColor),
               const SizedBox(height: 28),
-              _buildThemeToggle(),
+              _buildThemeToggle(isDark, cardColor),
               const SizedBox(height: 16),
-              _buildSettingsList(),
+              _buildSettingsList(cardColor),
               const SizedBox(height: 28),
               _buildLogoutButton(),
             ],
@@ -64,9 +50,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Avatar + name + username + email ───────────────────────────────────────
-
-  Widget _buildAvatarSection() {
+  Widget _buildAvatarSection(ColorScheme cs) {
     return Column(
       children: [
         Stack(
@@ -83,21 +67,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: _cardDark,
+                  color: Theme.of(context).cardColor,
                   shape: BoxShape.circle,
-                  border: Border.all(color: _bg, width: 2),
+                  border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 2),
                 ),
-                child: const Icon(Icons.edit_outlined,
-                    color: Colors.white, size: 16),
+                child: Icon(Icons.edit_outlined, color: cs.onSurface, size: 16),
               ),
             ),
           ],
         ),
         const SizedBox(height: 14),
-        const Text(
+        Text(
           'Haider Mushtaq',
           style: TextStyle(
-            color: Colors.white,
+            color: cs.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
@@ -120,14 +105,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Stats row ──────────────────────────────────────────────────────────────
-
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(Color cardColor) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
-        color: _cardDark,
+        color: cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
@@ -142,49 +125,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _vDivider() => Container(
-        width: 1,
-        height: 36,
-        color: Colors.white12,
-      );
+  Widget _vDivider() => Container(width: 1, height: 36, color: Colors.white12);
 
-  // ── Dark / light mode toggle ───────────────────────────────────────────────
-
-  Widget _buildThemeToggle() {
+  Widget _buildThemeToggle(bool isDark, Color cardColor) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: _cardDark,
+        color: cardColor,
         borderRadius: BorderRadius.circular(14),
       ),
       child: SwitchListTile(
-        value: _isDark,
+        value: isDark,
         onChanged: _toggleTheme,
         activeThumbColor: _accent,
         secondary: Icon(
-          _isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
-          color: Colors.white,
+          isDark ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
-        title: const Text(
+        title: Text(
           'Dark Mode',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w500, fontSize: 15),
+            color: Theme.of(context).colorScheme.onSurface,
+            fontWeight: FontWeight.w500,
+            fontSize: 15,
+          ),
         ),
         subtitle: Text(
-          _isDark ? 'Switch to light theme' : 'Switch to dark theme',
+          isDark ? 'Switch to light theme' : 'Switch to dark theme',
           style: const TextStyle(color: Colors.grey, fontSize: 12),
         ),
       ),
     );
   }
 
-  // ── Settings list ──────────────────────────────────────────────────────────
-
-  Widget _buildSettingsList() {
+  Widget _buildSettingsList(Color cardColor) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: BoxDecoration(
-        color: _cardDark,
+        color: cardColor,
         borderRadius: BorderRadius.circular(14),
       ),
       child: Column(
@@ -194,22 +172,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             label: 'Reminder Settings',
             onTap: _showReminderDialog,
           ),
-          const Divider(
-              color: Colors.white12, height: 1, indent: 56, endIndent: 16),
+          const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
           _SettingsTile(
             icon: Icons.lock_outline,
             label: 'Change Password',
             onTap: () => _showComingSoon('Change Password'),
           ),
-          const Divider(
-              color: Colors.white12, height: 1, indent: 56, endIndent: 16),
+          const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
           _SettingsTile(
             icon: Icons.info_outline,
             label: 'About FairShare',
             onTap: _showAboutDialog,
           ),
-          const Divider(
-              color: Colors.white12, height: 1, indent: 56, endIndent: 16),
+          const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
           _SettingsTile(
             icon: Icons.help_outline,
             label: 'Help & Support',
@@ -221,8 +196,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  // ── Logout button ──────────────────────────────────────────────────────────
-
   Widget _buildLogoutButton() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -231,35 +204,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Colors.red, width: 1.5),
           minimumSize: const Size(double.infinity, 52),
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
         child: const Text(
           'Logout',
           style: TextStyle(
-              color: Colors.red,
-              fontWeight: FontWeight.bold,
-              fontSize: 16),
+              color: Colors.red, fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ),
     );
   }
 
-  // ── Dialogs ────────────────────────────────────────────────────────────────
-
   void _showReminderDialog() {
+    final cardColor = Theme.of(context).cardColor;
     int tempHours = _reminderHours;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: _cardDark,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16)),
-          title: const Text(
+          backgroundColor: cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text(
             'Reminder Settings',
             style: TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold),
+                color: Theme.of(ctx).colorScheme.onSurface,
+                fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -270,61 +239,55 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 12),
               ...[24, 48, 72].map((h) {
-                    final selected = tempHours == h;
-                    return InkWell(
-                      onTap: () =>
-                          setDialogState(() => tempHours = h),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: selected
-                                      ? _accent
-                                      : Colors.grey,
-                                  width: 2,
-                                ),
-                              ),
-                              child: selected
-                                  ? Center(
-                                      child: Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration:
-                                            const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: _accent,
-                                        ),
-                                      ),
-                                    )
-                                  : null,
+                final selected = tempHours == h;
+                return InkWell(
+                  onTap: () => setDialogState(() => tempHours = h),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selected ? _accent : Colors.grey,
+                              width: 2,
                             ),
-                            const SizedBox(width: 12),
-                            Text(
-                              'Every ${h}hrs',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 14),
-                            ),
-                          ],
+                          ),
+                          child: selected
+                              ? Center(
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _accent,
+                                    ),
+                                  ),
+                                )
+                              : null,
                         ),
-                      ),
-                    );
-                  }),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Every ${h}hrs',
+                          style: TextStyle(
+                              color: Theme.of(ctx).colorScheme.onSurface,
+                              fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
             ],
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel',
-                  style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -347,22 +310,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showAboutDialog() {
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             const Icon(Icons.account_balance_wallet_rounded,
                 color: _accent, size: 24),
             const SizedBox(width: 10),
-            const Text(
-              'FairShare',
-              style: TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.bold),
-            ),
+            Text('FairShare',
+                style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
           ],
         ),
         content: Column(
@@ -372,13 +333,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
             const Text('Version 1.0.0',
                 style: TextStyle(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 16),
-            const Text(
-              'Built by',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13),
-            ),
+            Text('Built by',
+                style: TextStyle(
+                    color: onSurface,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13)),
             const SizedBox(height: 8),
             ...['Haider Mushtaq', 'Mohsin Ashraf', 'Shumail Khan', 'Haider Zahoor']
                 .map((name) => Padding(
@@ -389,8 +348,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               color: _accent, size: 14),
                           const SizedBox(width: 6),
                           Text(name,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 13)),
+                              style: TextStyle(color: onSurface, fontSize: 13)),
                         ],
                       ),
                     )),
@@ -405,8 +363,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Close',
-                style: TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.bold)),
+                style:
+                    TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -414,15 +372,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showComingSoon(String feature) {
+    final cardColor = Theme.of(context).cardColor;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(feature,
-            style: const TextStyle(
-                color: Colors.white, fontWeight: FontWeight.bold)),
+            style: TextStyle(
+                color: Theme.of(ctx).colorScheme.onSurface,
+                fontWeight: FontWeight.bold)),
         content: const Text(
           'This feature is coming soon!',
           style: TextStyle(color: Colors.grey),
@@ -436,8 +395,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('OK',
-                style: TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.bold)),
+                style:
+                    TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -445,16 +404,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _confirmLogout() {
+    final cardColor = Theme.of(context).cardColor;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
           'Logout',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
+              color: Theme.of(ctx).colorScheme.onSurface,
+              fontWeight: FontWeight.bold),
         ),
         content: const Text(
           'Are you sure you want to logout?',
@@ -463,8 +423,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -501,8 +460,8 @@ class _StatItem extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
-              color: Colors.white,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
@@ -535,6 +494,7 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.vertical(
@@ -558,13 +518,13 @@ class _SettingsTile extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                style: const TextStyle(
-                    color: Colors.white,
+                style: TextStyle(
+                    color: onSurface,
                     fontSize: 15,
                     fontWeight: FontWeight.w500),
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+            Icon(Icons.chevron_right, color: Colors.grey, size: 20),
           ],
         ),
       ),

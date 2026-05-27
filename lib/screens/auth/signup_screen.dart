@@ -18,8 +18,6 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _obscureConfirmPassword = true;
 
   static const _accent = Color(0xFF00D4AA);
-  static const _bg = Color(0xFF1A1A2E);
-  static const _fieldFill = Color(0xFF16213E);
 
   @override
   void dispose() {
@@ -76,11 +74,9 @@ class _SignupScreenState extends State<SignupScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.grey),
-      prefixIcon: Icon(prefixIcon, color: Colors.grey),
+      prefixIcon: Icon(prefixIcon),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: _fieldFill,
       contentPadding: const EdgeInsets.symmetric(vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -95,8 +91,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -105,16 +101,15 @@ class _SignupScreenState extends State<SignupScreen> {
             children: [
               const SizedBox(height: 40),
 
-              // Logo + app name
               Row(
-                children: const [
-                  Icon(Icons.account_balance_wallet_rounded,
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded,
                       color: _accent, size: 28),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(
                     'FairShare',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -124,10 +119,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 48),
 
-              const Text(
+              Text(
                 'Create Account',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: onSurface,
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
@@ -140,12 +135,11 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 40),
 
-              // Full Name field
               TextField(
                 controller: _fullNameController,
                 keyboardType: TextInputType.name,
                 textCapitalization: TextCapitalization.words,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Full Name',
                   prefixIcon: Icons.person_outline,
@@ -154,11 +148,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 16),
 
-              // Username field
               TextField(
                 controller: _usernameController,
                 keyboardType: TextInputType.text,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Username',
                   prefixIcon: Icons.alternate_email,
@@ -167,11 +160,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 16),
 
-              // Email field
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Email',
                   prefixIcon: Icons.email_outlined,
@@ -180,11 +172,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 16),
 
-              // Password field
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Password',
                   prefixIcon: Icons.lock_outline,
@@ -203,11 +194,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 16),
 
-              // Confirm Password field
               TextField(
                 controller: _confirmPasswordController,
                 obscureText: _obscureConfirmPassword,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Confirm Password',
                   prefixIcon: Icons.lock_outline,
@@ -226,7 +216,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 32),
 
-              // Create Account button
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -251,7 +240,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
               const SizedBox(height: 32),
 
-              // Login row
               Center(
                 child: GestureDetector(
                   onTap: () =>

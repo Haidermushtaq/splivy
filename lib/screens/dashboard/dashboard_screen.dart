@@ -15,26 +15,22 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
-  static const _bg = Color(0xFF1A1A2E);
-
   String get _currentRoute {
     const routes = ['/dashboard', '/groups', '/friends', '/profile'];
     return routes[_currentIndex];
   }
-  static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
 
   void _showExitDialog() {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        backgroundColor: Theme.of(ctx).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
           'Exit FairShare?',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
+              color: Theme.of(ctx).colorScheme.onSurface,
+              fontWeight: FontWeight.bold),
         ),
         content: const Text(
           'Are you sure you want to exit?',
@@ -70,7 +66,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (!didPop) _showExitDialog();
       },
       child: Scaffold(
-        backgroundColor: _bg,
         appBar: _buildAppBar(),
         drawer: AppDrawer(currentRoute: _currentRoute),
         body: _buildBody(),
@@ -81,33 +76,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
-      backgroundColor: _bg,
-      elevation: 0,
       titleSpacing: 12,
       leading: Builder(
         builder: (ctx) => IconButton(
-          icon: const Icon(Icons.menu, color: Colors.white),
+          icon: const Icon(Icons.menu),
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         ),
       ),
-      title: const Text(
-        'FairShare',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
+      title: const Text('FairShare'),
       actions: [
         IconButton(
-          icon: const Icon(Icons.notifications_outlined, color: Colors.white),
+          icon: const Icon(Icons.notifications_outlined),
           onPressed: () {},
         ),
         Padding(
           padding: const EdgeInsets.only(right: 16, left: 4),
           child: CircleAvatar(
             radius: 18,
-            backgroundColor: _cardDark,
+            backgroundColor: Theme.of(context).cardColor,
             child: const Icon(Icons.person, color: Colors.grey, size: 20),
           ),
         ),
@@ -119,10 +105,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
-      backgroundColor: _cardDark,
-      selectedItemColor: _accent,
-      unselectedItemColor: Colors.grey,
-      type: BottomNavigationBarType.fixed,
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
         BottomNavigationBarItem(
@@ -170,10 +152,10 @@ class _HomeTab extends StatelessWidget {
           const SizedBox(height: 24),
           _QuickActions(),
           const SizedBox(height: 28),
-          const Text(
+          Text(
             'Recent Activity',
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
@@ -207,15 +189,15 @@ class _SummaryCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Total Balance',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
-          const SizedBox(height: 8),
-          const Text(
+          SizedBox(height: 8),
+          Text(
             'PKR 0.00',
             style: TextStyle(
               color: Colors.white,
@@ -224,29 +206,25 @@ class _SummaryCard extends StatelessWidget {
               letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 20),
-          const Divider(color: Colors.white12, thickness: 1),
-          const SizedBox(height: 16),
+          SizedBox(height: 20),
+          Divider(color: Colors.white12, thickness: 1),
+          SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: _BalanceStat(
                   label: 'You Owe',
                   amount: 'PKR 0.00',
-                  color: const Color(0xFFFF6B6B),
+                  color: Color(0xFFFF6B6B),
                   icon: Icons.arrow_upward_rounded,
                 ),
               ),
-              Container(
-                width: 1,
-                height: 40,
-                color: Colors.white12,
-              ),
+              SizedBox(width: 1, height: 40, child: ColoredBox(color: Colors.white12)),
               Expanded(
                 child: _BalanceStat(
                   label: "You're Owed",
                   amount: 'PKR 0.00',
-                  color: const Color(0xFF00D4AA),
+                  color: Color(0xFF00D4AA),
                   icon: Icons.arrow_downward_rounded,
                 ),
               ),
@@ -331,7 +309,6 @@ class _ActionButton extends StatelessWidget {
   final VoidCallback onTap;
 
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
 
   const _ActionButton({
     required this.icon,
@@ -347,7 +324,7 @@ class _ActionButton extends StatelessWidget {
         width: 100,
         padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
-          color: _cardDark,
+          color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -358,8 +335,8 @@ class _ActionButton extends StatelessWidget {
             Text(
               label,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
@@ -376,20 +353,20 @@ class _EmptyActivity extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Column(
-        children: const [
-          SizedBox(height: 20),
-          Icon(Icons.receipt_long_outlined, color: Colors.grey, size: 56),
-          SizedBox(height: 16),
+        children: [
+          const SizedBox(height: 20),
+          const Icon(Icons.receipt_long_outlined, color: Colors.grey, size: 56),
+          const SizedBox(height: 16),
           Text(
             'No expenses yet.',
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
           ),
-          SizedBox(height: 6),
-          Text(
+          const SizedBox(height: 6),
+          const Text(
             'Add your first expense!',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),

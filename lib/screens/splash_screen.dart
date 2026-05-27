@@ -37,8 +37,8 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: const Color(0xFF1A1A2E),
       body: FadeTransition(
         opacity: _fadeAnimation,
         child: Center(
@@ -46,16 +46,16 @@ class _SplashScreenState extends State<SplashScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              const Icon(
+              Icon(
                 Icons.account_balance_wallet_rounded,
-                color: Colors.white,
+                color: onSurface,
                 size: 80,
               ),
               const SizedBox(height: 24),
-              const Text(
+              Text(
                 'FairShare',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: onSurface,
                   fontSize: 36,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
@@ -71,7 +71,8 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const Spacer(),
               const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF00D4AA)),
+                valueColor:
+                    AlwaysStoppedAnimation<Color>(Color(0xFF00D4AA)),
               ),
               const SizedBox(height: 48),
             ],

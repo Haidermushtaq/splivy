@@ -13,8 +13,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _obscurePassword = true;
 
   static const _accent = Color(0xFF00D4AA);
-  static const _bg = Color(0xFF1A1A2E);
-  static const _fieldFill = Color(0xFF16213E);
 
   @override
   void dispose() {
@@ -45,11 +43,9 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return InputDecoration(
       hintText: hint,
-      hintStyle: const TextStyle(color: Colors.grey),
-      prefixIcon: Icon(prefixIcon, color: Colors.grey),
+      prefixIcon: Icon(prefixIcon),
       suffixIcon: suffixIcon,
       filled: true,
-      fillColor: _fieldFill,
       contentPadding: const EdgeInsets.symmetric(vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
@@ -64,8 +60,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: _bg,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
@@ -74,16 +70,15 @@ class _LoginScreenState extends State<LoginScreen> {
             children: [
               const SizedBox(height: 40),
 
-              // Logo + app name
               Row(
-                children: const [
-                  Icon(Icons.account_balance_wallet_rounded,
+                children: [
+                  const Icon(Icons.account_balance_wallet_rounded,
                       color: _accent, size: 28),
-                  SizedBox(width: 8),
+                  const SizedBox(width: 8),
                   Text(
                     'FairShare',
                     style: TextStyle(
-                      color: Colors.white,
+                      color: onSurface,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
@@ -93,10 +88,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 48),
 
-              const Text(
+              Text(
                 'Welcome Back',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: onSurface,
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
                 ),
@@ -109,11 +104,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 40),
 
-              // Email field
               TextField(
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Email',
                   prefixIcon: Icons.email_outlined,
@@ -122,11 +116,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 16),
 
-              // Password field
               TextField(
                 controller: _passwordController,
                 obscureText: _obscurePassword,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: _fieldDecoration(
                   hint: 'Password',
                   prefixIcon: Icons.lock_outline,
@@ -145,7 +138,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 12),
 
-              // Forgot password
               Align(
                 alignment: Alignment.center,
                 child: TextButton(
@@ -159,7 +151,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 8),
 
-              // Login button
               SizedBox(
                 width: double.infinity,
                 height: 52,
@@ -184,16 +175,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
               const SizedBox(height: 32),
 
-              // Sign up row
               Center(
                 child: GestureDetector(
                   onTap: () => Navigator.of(context).pushNamed('/signup'),
                   child: RichText(
-                    text: const TextSpan(
-                      style: TextStyle(color: Colors.grey, fontSize: 14),
+                    text: TextSpan(
+                      style: const TextStyle(color: Colors.grey, fontSize: 14),
                       children: [
-                        TextSpan(text: "Don't have an account? "),
-                        TextSpan(
+                        const TextSpan(text: "Don't have an account? "),
+                        const TextSpan(
                           text: 'Sign Up',
                           style: TextStyle(
                             color: _accent,

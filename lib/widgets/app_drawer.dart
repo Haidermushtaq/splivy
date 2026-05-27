@@ -9,15 +9,16 @@ class AppDrawer extends StatefulWidget {
 }
 
 class _AppDrawerState extends State<AppDrawer> {
-  static const _bg = Color(0xFF0F3460);
   static const _accent = Color(0xFF00D4AA);
 
   int _reminderHours = 24;
 
   @override
   Widget build(BuildContext context) {
+    final cardColor = Theme.of(context).cardColor;
+    final dividerColor = Theme.of(context).dividerColor;
     return Drawer(
-      backgroundColor: _bg,
+      backgroundColor: cardColor,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.only(
           topRight: Radius.circular(24),
@@ -34,19 +35,22 @@ class _AppDrawerState extends State<AppDrawer> {
           _navTile(context, icon: Icons.people_outline, label: 'Friends', route: '/friends'),
           _navTile(context, icon: Icons.payments_outlined, label: 'Settle Up', route: '/settle-up'),
           _navTile(context, icon: Icons.person_outline, label: 'Profile', route: '/profile'),
-          const Divider(color: Colors.white24, indent: 16, endIndent: 16, height: 24),
+          Divider(color: dividerColor, indent: 16, endIndent: 16, height: 24),
           _actionTile(
+            context,
             icon: Icons.notifications_outlined,
             label: 'Reminder Settings',
             onTap: _showReminderDialog,
           ),
           _actionTile(
+            context,
             icon: Icons.info_outline,
             label: 'About FairShare',
             onTap: _showAboutDialog,
           ),
-          const Divider(color: Colors.white24, indent: 16, endIndent: 16, height: 24),
+          Divider(color: dividerColor, indent: 16, endIndent: 16, height: 24),
           _actionTile(
+            context,
             icon: Icons.logout,
             label: 'Logout',
             onTap: _confirmLogout,
@@ -75,16 +79,16 @@ class _AppDrawerState extends State<AppDrawer> {
         top: MediaQuery.of(context).padding.top + 20,
         bottom: 20,
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 36,
             backgroundColor: Colors.black45,
             child: Icon(Icons.person, color: Colors.white, size: 40),
           ),
-          const SizedBox(height: 12),
-          const Text(
+          SizedBox(height: 12),
+          Text(
             'Haider Mushtaq',
             style: TextStyle(
               color: Colors.white,
@@ -92,13 +96,13 @@ class _AppDrawerState extends State<AppDrawer> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          const Text(
+          Text(
             '@haider_mushtaq',
             style: TextStyle(color: Colors.white70, fontSize: 13),
           ),
-          const Text(
+          Text(
             'haider@example.com',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
+            style: TextStyle(color: Colors.white60, fontSize: 12),
           ),
         ],
       ),
@@ -112,14 +116,15 @@ class _AppDrawerState extends State<AppDrawer> {
     required String route,
   }) {
     final active = widget.currentRoute == route;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: ListTile(
-        leading: Icon(icon, color: active ? _accent : Colors.white),
+        leading: Icon(icon, color: active ? _accent : onSurface),
         title: Text(
           label,
           style: TextStyle(
-            color: active ? _accent : Colors.white,
+            color: active ? _accent : onSurface,
             fontWeight: active ? FontWeight.bold : FontWeight.normal,
           ),
         ),
@@ -138,17 +143,19 @@ class _AppDrawerState extends State<AppDrawer> {
     );
   }
 
-  Widget _actionTile({
+  Widget _actionTile(
+    BuildContext context, {
     required IconData icon,
     required String label,
     required VoidCallback onTap,
-    Color color = Colors.white,
+    Color? color,
   }) {
+    final tileColor = color ?? Theme.of(context).colorScheme.onSurface;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       child: ListTile(
-        leading: Icon(icon, color: color),
-        title: Text(label, style: TextStyle(color: color)),
+        leading: Icon(icon, color: tileColor),
+        title: Text(label, style: TextStyle(color: tileColor)),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         onTap: onTap,
       ),
@@ -156,16 +163,18 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _showReminderDialog() {
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     int tempHours = _reminderHours;
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          backgroundColor: _bg,
+          backgroundColor: cardColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text(
+          title: Text(
             'Reminder Settings',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            style: TextStyle(color: onSurface, fontWeight: FontWeight.bold),
           ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -210,7 +219,7 @@ class _AppDrawerState extends State<AppDrawer> {
                         const SizedBox(width: 12),
                         Text(
                           'Every ${h}hrs',
-                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                          style: TextStyle(color: onSurface, fontSize: 14),
                         ),
                       ],
                     ),
@@ -245,18 +254,20 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _showAboutDialog() {
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _bg,
+        backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.account_balance_wallet_rounded, color: _accent, size: 24),
-            SizedBox(width: 10),
+            const Icon(Icons.account_balance_wallet_rounded, color: _accent, size: 24),
+            const SizedBox(width: 10),
             Text(
               'FairShare',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(color: onSurface, fontWeight: FontWeight.bold),
             ),
           ],
         ),
@@ -270,10 +281,10 @@ class _AppDrawerState extends State<AppDrawer> {
               style: TextStyle(color: Colors.grey, fontSize: 13),
             ),
             const SizedBox(height: 16),
-            const Text(
+            Text(
               'Team',
               style: TextStyle(
-                color: Colors.white,
+                color: onSurface,
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
               ),
@@ -286,7 +297,7 @@ class _AppDrawerState extends State<AppDrawer> {
                   children: [
                     const Icon(Icons.person_outline, color: _accent, size: 14),
                     const SizedBox(width: 6),
-                    Text(name, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    Text(name, style: TextStyle(color: onSurface, fontSize: 13)),
                   ],
                 ),
               ),
@@ -311,14 +322,16 @@ class _AppDrawerState extends State<AppDrawer> {
   }
 
   void _confirmLogout() {
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _bg,
+        backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        title: Text(
           'Logout',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: onSurface, fontWeight: FontWeight.bold),
         ),
         content: const Text(
           'Are you sure you want to logout?',

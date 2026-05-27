@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'app_theme.dart';
+import 'theme/app_theme.dart';
+import 'providers/theme_provider.dart';
 import 'utils/page_transitions.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -16,27 +18,33 @@ import 'screens/settle/settle_up_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
-  final isDark = prefs.getBool('isDarkMode') ?? true;
-  themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
-  runApp(const FairShareApp());
+  final isDark = prefs.getBool('theme_mode') ?? true;
+  runApp(
+    ProviderScope(
+      overrides: [
+        themeProvider.overrideWith(
+          (ref) => isDark ? ThemeMode.dark : ThemeMode.light,
+        ),
+      ],
+      child: const FairShareApp(),
+    ),
+  );
 }
 
-class FairShareApp extends StatelessWidget {
+class FairShareApp extends ConsumerWidget {
   const FairShareApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (context, mode, child) => MaterialApp(
-        title: 'FairShare',
-        debugShowCheckedModeBanner: false,
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: mode,
-        initialRoute: '/',
-        onGenerateRoute: _generateRoute,
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+    return MaterialApp(
+      title: 'FairShare',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: themeMode,
+      initialRoute: '/',
+      onGenerateRoute: _generateRoute,
     );
   }
 }

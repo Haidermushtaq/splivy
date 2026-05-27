@@ -15,13 +15,29 @@ class _Debt {
 }
 
 const _allYouOwe = <_Debt>[
-  _Debt(name: 'Ali Khan', groupName: 'Roommates', amount: 500, dueSince: '3 days ago'),
-  _Debt(name: 'Mohsin Ashraf', groupName: 'Office Lunch', amount: 1300, dueSince: '1 week ago'),
+  _Debt(
+      name: 'Ali Khan',
+      groupName: 'Roommates',
+      amount: 500,
+      dueSince: '3 days ago'),
+  _Debt(
+      name: 'Mohsin Ashraf',
+      groupName: 'Office Lunch',
+      amount: 1300,
+      dueSince: '1 week ago'),
 ];
 
 const _allOwesYou = <_Debt>[
-  _Debt(name: 'Shumail Khan', groupName: 'Trip to Murree', amount: 2000, dueSince: '2 days ago'),
-  _Debt(name: 'Haider Zahoor', groupName: 'Roommates', amount: 1200, dueSince: '5 days ago'),
+  _Debt(
+      name: 'Shumail Khan',
+      groupName: 'Trip to Murree',
+      amount: 2000,
+      dueSince: '2 days ago'),
+  _Debt(
+      name: 'Haider Zahoor',
+      groupName: 'Roommates',
+      amount: 1200,
+      dueSince: '5 days ago'),
 ];
 
 class SettleUpScreen extends StatefulWidget {
@@ -34,9 +50,7 @@ class SettleUpScreen extends StatefulWidget {
 }
 
 class _SettleUpScreenState extends State<SettleUpScreen> {
-  static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
   static const _red = Color(0xFFFF6B6B);
 
   late List<_Debt> _youOwe;
@@ -65,16 +79,17 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
   bool get _allSettled => _youOwe.isEmpty && _owesYou.isEmpty;
 
   void _confirmMarkAsPaid(_Debt debt) {
+    final cardColor = Theme.of(context).cardColor;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: const Text(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
           'Confirm Payment',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
+              color: Theme.of(ctx).colorScheme.onSurface,
+              fontWeight: FontWeight.bold),
         ),
         content: Text(
           'Are you sure you want to mark PKR ${debt.amount.toStringAsFixed(0)} to ${debt.name} as paid?',
@@ -83,8 +98,7 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -97,8 +111,7 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
               setState(() => _youOwe.remove(debt));
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content:
-                      const Text('Payment marked as settled!'),
+                  content: const Text('Payment marked as settled!'),
                   backgroundColor: _accent,
                   behavior: SnackBarBehavior.floating,
                   shape: RoundedRectangleBorder(
@@ -108,8 +121,7 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
             },
             child: const Text(
               'Confirm',
-              style: TextStyle(
-                  color: Colors.black, fontWeight: FontWeight.bold),
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -123,8 +135,8 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
         content: Text('Reminder sent to ${debt.name}!'),
         backgroundColor: _accent,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -132,27 +144,17 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: _bg,
         elevation: 0,
-        title: const Text(
-          'Settle Up',
-          style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: const Text('Settle Up'),
       ),
       body: _allSettled ? _buildAllSettled() : _buildContent(),
     );
   }
 
-  // ── Main content ──────────────────────────────────────────────────────────
-
   Widget _buildContent() {
     return SingleChildScrollView(
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -174,8 +176,6 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
       ),
     );
   }
-
-  // ── Summary card ──────────────────────────────────────────────────────────
 
   Widget _buildSummaryCard() {
     final count = _youOwe.length;
@@ -219,21 +219,16 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
     );
   }
 
-  // ── Debt card (shared for both sections) ─────────────────────────────────
-
   Widget _buildDebtCard(_Debt debt, {required bool youOwe}) {
     final amountColor = youOwe ? _red : _accent;
-    final amountText =
-        'PKR ${debt.amount.toStringAsFixed(0)}';
+    final amountText = 'PKR ${debt.amount.toStringAsFixed(0)}';
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Card(
-      color: _cardDark,
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(
@@ -255,8 +250,8 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
                 children: [
                   Text(
                     debt.name,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: onSurface,
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
                     ),
@@ -264,14 +259,12 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
                   const SizedBox(height: 2),
                   Text(
                     '${debt.groupName} group',
-                    style: const TextStyle(
-                        color: Colors.grey, fontSize: 11),
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     'Due since: ${debt.dueSince}',
-                    style: const TextStyle(
-                        color: Colors.grey, fontSize: 10),
+                    style: const TextStyle(color: Colors.grey, fontSize: 10),
                   ),
                 ],
               ),
@@ -310,10 +303,9 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         side: const BorderSide(color: _accent),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8)),
-        padding:
-            const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         minimumSize: Size.zero,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
@@ -335,8 +327,6 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
     );
   }
 
-  // ── All settled empty state ───────────────────────────────────────────────
-
   Widget _buildAllSettled() {
     return Center(
       child: Column(
@@ -351,14 +341,13 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
               border: Border.all(
                   color: _accent.withValues(alpha: 0.4), width: 2),
             ),
-            child: const Icon(Icons.check_rounded,
-                color: _accent, size: 56),
+            child: const Icon(Icons.check_rounded, color: _accent, size: 56),
           ),
           const SizedBox(height: 24),
-          const Text(
+          Text(
             'All settled up!',
             style: TextStyle(
-              color: Colors.white,
+              color: Theme.of(context).colorScheme.onSurface,
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
@@ -379,8 +368,7 @@ class _SettleUpScreenState extends State<SettleUpScreen> {
                 height: isCenter ? 14 : 8,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _accent
-                      .withValues(alpha: isCenter ? 1.0 : 0.35),
+                  color: _accent.withValues(alpha: isCenter ? 1.0 : 0.35),
                 ),
               );
             }),

@@ -48,9 +48,7 @@ class GroupsScreen extends StatefulWidget {
 }
 
 class _GroupsScreenState extends State<GroupsScreen> {
-  static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
 
   final _groupNameController = TextEditingController();
   List<Group> _groups = List.from(_dummyGroups);
@@ -75,22 +73,25 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   void _showCreateGroupDialog() {
     _groupNameController.clear();
+    final cardColor = Theme.of(context).cardColor;
+    final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _cardDark,
+        backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('New Group',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text('New Group',
+            style: TextStyle(
+                color: Theme.of(ctx).colorScheme.onSurface,
+                fontWeight: FontWeight.bold)),
         content: TextField(
           controller: _groupNameController,
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface),
           autofocus: true,
           decoration: InputDecoration(
             hintText: 'Group name',
-            hintStyle: const TextStyle(color: Colors.grey),
             filled: true,
-            fillColor: const Color(0xFF1A1A2E),
+            fillColor: scaffoldBg,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
               borderSide: BorderSide.none,
@@ -139,37 +140,26 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
-      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: _bg,
         elevation: 0,
         titleSpacing: 20,
         title: _searching
             ? TextField(
                 controller: _searchController,
                 autofocus: true,
-                style: const TextStyle(color: Colors.white),
+                style: TextStyle(color: onSurface),
                 decoration: const InputDecoration(
                   hintText: 'Search groups...',
-                  hintStyle: TextStyle(color: Colors.grey),
                   border: InputBorder.none,
                 ),
                 onChanged: _onSearchChanged,
               )
-            : const Text(
-                'My Groups',
-                style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold),
-              ),
+            : const Text('My Groups'),
         actions: [
           IconButton(
-            icon: Icon(
-              _searching ? Icons.close : Icons.search,
-              color: Colors.white,
-            ),
+            icon: Icon(_searching ? Icons.close : Icons.search),
             onPressed: () {
               setState(() {
                 _searching = !_searching;
@@ -210,18 +200,17 @@ class _GroupsScreenState extends State<GroupsScreen> {
   }
 
   Widget _buildEmptyState() {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Icon(Icons.group_outlined, color: Colors.grey, size: 64),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No groups yet.',
             style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600),
+                color: onSurface, fontSize: 16, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 6),
           const Text(
@@ -233,8 +222,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
             onPressed: _showCreateGroupDialog,
             style: ElevatedButton.styleFrom(
               backgroundColor: _accent,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
             ),
@@ -252,7 +240,6 @@ class _GroupCard extends StatelessWidget {
   final Group group;
   final VoidCallback onTap;
 
-  static const _cardDark = Color(0xFF0F3460);
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
@@ -262,16 +249,15 @@ class _GroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isOwed = group.balance > 0;
     final isSettled = group.balance == 0;
-    final balanceColor =
-        isSettled ? Colors.grey : (isOwed ? _accent : _red);
+    final balanceColor = isSettled ? Colors.grey : (isOwed ? _accent : _red);
     final balanceText = isSettled
         ? 'Settled'
         : isOwed
             ? '+PKR ${group.balance.toStringAsFixed(0)}'
             : '-PKR ${group.balance.abs().toStringAsFixed(0)}';
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Card(
-      color: _cardDark,
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
@@ -281,7 +267,6 @@ class _GroupCard extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
-              // Avatar
               CircleAvatar(
                 radius: 24,
                 backgroundColor: _accent,
@@ -295,15 +280,14 @@ class _GroupCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 14),
-              // Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       group.name,
-                      style: const TextStyle(
-                        color: Colors.white,
+                      style: TextStyle(
+                        color: onSurface,
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -311,21 +295,18 @@ class _GroupCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       '${group.memberCount} members',
-                      style:
-                          const TextStyle(color: Colors.grey, fontSize: 12),
+                      style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Last: ${group.lastExpense}',
-                      style:
-                          const TextStyle(color: Colors.grey, fontSize: 11),
+                      style: const TextStyle(color: Colors.grey, fontSize: 11),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 12),
-              // Balance + arrow
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -338,8 +319,7 @@ class _GroupCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right,
-                      color: Colors.grey, size: 20),
+                  const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
                 ],
               ),
             ],
