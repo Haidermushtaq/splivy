@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../groups/groups_screen.dart';
 import '../friends/friends_screen.dart';
 import '../profile/profile_screen.dart';
-import '../settle/settle_up_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -18,13 +18,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
   static const _accent = Color(0xFF00D4AA);
   static const _cardDark = Color(0xFF0F3460);
 
+  void _showExitDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _cardDark,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Exit FairShare?',
+          style: TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to exit?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => SystemNavigator.pop(),
+            child: const Text('Exit',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: _bg,
-      appBar: _buildAppBar(),
-      body: _buildBody(),
-      bottomNavigationBar: _buildBottomNav(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _showExitDialog();
+      },
+      child: Scaffold(
+        backgroundColor: _bg,
+        appBar: _buildAppBar(),
+        body: _buildBody(),
+        bottomNavigationBar: _buildBottomNav(),
+      ),
     );
   }
 
@@ -256,10 +300,7 @@ class _QuickActions extends StatelessWidget {
         _ActionButton(
           icon: Icons.check_circle_outline,
           label: 'Settle Up',
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(
-                builder: (_) => const SettleUpScreen()),
-          ),
+          onTap: () => Navigator.of(context).pushNamed('/settle-up'),
         ),
         _ActionButton(
           icon: Icons.person_add_outlined,

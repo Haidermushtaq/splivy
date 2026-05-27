@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'signup_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,7 +34,8 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
-    // TODO: auth logic
+    // TODO: replace with real auth — navigate on success
+    Navigator.of(context).pushReplacementNamed('/dashboard');
   }
 
   InputDecoration _fieldDecoration({
@@ -187,9 +187,7 @@ class _LoginScreenState extends State<LoginScreen> {
               // Sign up row
               Center(
                 child: GestureDetector(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SignupScreen()),
-                  ),
+                  onTap: () => Navigator.of(context).pushNamed('/signup'),
                   child: RichText(
                     text: const TextSpan(
                       style: TextStyle(color: Colors.grey, fontSize: 14),
