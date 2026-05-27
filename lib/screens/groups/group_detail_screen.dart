@@ -81,9 +81,7 @@ class GroupDetailScreen extends StatefulWidget {
 }
 
 class _GroupDetailScreenState extends State<GroupDetailScreen> {
-  static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
-  static const _cardDark = Color(0xFF0F3460);
   static const _red = Color(0xFFFF6B6B);
 
   final List<_ExpenseItem> _expenses = List.from(_dummyExpenses);
@@ -99,25 +97,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: _bg,
       appBar: AppBar(
-        backgroundColor: _bg,
         elevation: 0,
-        title: Text(
-          widget.groupName,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        title: Text(widget.groupName),
         actions: [
+          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
           IconButton(
-            icon: const Icon(Icons.search, color: Colors.white),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined, color: Colors.white),
-            onPressed: () {},
-          ),
+              icon: const Icon(Icons.settings_outlined), onPressed: () {}),
         ],
       ),
       body: ListView(
@@ -150,13 +136,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Widget _buildMembersSection() {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Members',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+              color: onSurface, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 12),
         SizedBox(
@@ -208,7 +195,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       children: [
         CircleAvatar(
           radius: 26,
-          backgroundColor: _cardDark,
+          backgroundColor: Theme.of(context).cardColor,
           child: const Icon(Icons.add, color: _accent, size: 24),
         ),
         const SizedBox(height: 6),
@@ -230,7 +217,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
 
     if (isSettled) {
       balanceText = 'All settled!';
-      balanceColor = Colors.white;
+      balanceColor = Theme.of(context).colorScheme.onSurface;
     } else if (isOwed) {
       balanceText = 'You are owed PKR ${net.toStringAsFixed(0)}';
       balanceColor = _accent;
@@ -242,7 +229,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: _cardDark,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -274,8 +261,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
             child: const Text(
               'Settle Up',
-              style: TextStyle(
-                  color: _accent, fontWeight: FontWeight.bold),
+              style: TextStyle(color: _accent, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -284,13 +270,14 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
   }
 
   Widget _buildExpensesSection() {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Expenses (${_expenses.length})',
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+          style: TextStyle(
+              color: onSurface, fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 12),
         if (_expenses.isEmpty)
@@ -311,15 +298,13 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     final date = expense.date;
     final dateText =
         '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
+    final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Card(
-      color: _cardDark,
       margin: const EdgeInsets.only(bottom: 10),
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(
@@ -334,23 +319,19 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 children: [
                   Text(
                     expense.title,
-                    style: const TextStyle(
-                        color: Colors.white,
+                    style: TextStyle(
+                        color: onSurface,
                         fontWeight: FontWeight.bold,
                         fontSize: 14),
                   ),
                   const SizedBox(height: 3),
-                  Text(
-                    dateText,
-                    style:
-                        const TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
+                  Text(dateText,
+                      style:
+                          const TextStyle(color: Colors.grey, fontSize: 11)),
                   const SizedBox(height: 2),
-                  Text(
-                    paidByText,
-                    style:
-                        const TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
+                  Text(paidByText,
+                      style:
+                          const TextStyle(color: Colors.grey, fontSize: 11)),
                 ],
               ),
             ),
@@ -367,8 +348,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'PKR ${expense.totalAmount.toStringAsFixed(0)} total',
-                  style:
-                      const TextStyle(color: Colors.grey, fontSize: 10),
+                  style: const TextStyle(color: Colors.grey, fontSize: 10),
                 ),
               ],
             ),
