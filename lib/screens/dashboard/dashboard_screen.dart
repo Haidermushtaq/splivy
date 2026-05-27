@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../groups/groups_screen.dart';
 import '../friends/friends_screen.dart';
 import '../profile/profile_screen.dart';
+import '../../widgets/app_drawer.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -15,6 +16,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _currentIndex = 0;
 
   static const _bg = Color(0xFF1A1A2E);
+
+  String get _currentRoute {
+    const routes = ['/dashboard', '/groups', '/friends', '/profile'];
+    return routes[_currentIndex];
+  }
   static const _accent = Color(0xFF00D4AA);
   static const _cardDark = Color(0xFF0F3460);
 
@@ -66,6 +72,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
         backgroundColor: _bg,
         appBar: _buildAppBar(),
+        drawer: AppDrawer(currentRoute: _currentRoute),
         body: _buildBody(),
         bottomNavigationBar: _buildBottomNav(),
       ),
@@ -76,7 +83,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return AppBar(
       backgroundColor: _bg,
       elevation: 0,
-      titleSpacing: 20,
+      titleSpacing: 12,
+      leading: Builder(
+        builder: (ctx) => IconButton(
+          icon: const Icon(Icons.menu, color: Colors.white),
+          onPressed: () => Scaffold.of(ctx).openDrawer(),
+        ),
+      ),
       title: const Text(
         'FairShare',
         style: TextStyle(

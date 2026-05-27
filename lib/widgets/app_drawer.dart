@@ -1,0 +1,350 @@
+import 'package:flutter/material.dart';
+
+class AppDrawer extends StatefulWidget {
+  final String currentRoute;
+  const AppDrawer({super.key, required this.currentRoute});
+
+  @override
+  State<AppDrawer> createState() => _AppDrawerState();
+}
+
+class _AppDrawerState extends State<AppDrawer> {
+  static const _bg = Color(0xFF0F3460);
+  static const _accent = Color(0xFF00D4AA);
+
+  int _reminderHours = 24;
+
+  @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      backgroundColor: _bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.only(
+          topRight: Radius.circular(24),
+          bottomRight: Radius.circular(24),
+        ),
+      ),
+      child: ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          _buildHeader(context),
+          const SizedBox(height: 8),
+          _navTile(context, icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
+          _navTile(context, icon: Icons.group_outlined, label: 'My Groups', route: '/groups'),
+          _navTile(context, icon: Icons.people_outline, label: 'Friends', route: '/friends'),
+          _navTile(context, icon: Icons.payments_outlined, label: 'Settle Up', route: '/settle-up'),
+          _navTile(context, icon: Icons.person_outline, label: 'Profile', route: '/profile'),
+          const Divider(color: Colors.white24, indent: 16, endIndent: 16, height: 24),
+          _actionTile(
+            icon: Icons.notifications_outlined,
+            label: 'Reminder Settings',
+            onTap: _showReminderDialog,
+          ),
+          _actionTile(
+            icon: Icons.info_outline,
+            label: 'About FairShare',
+            onTap: _showAboutDialog,
+          ),
+          const Divider(color: Colors.white24, indent: 16, endIndent: 16, height: 24),
+          _actionTile(
+            icon: Icons.logout,
+            label: 'Logout',
+            onTap: _confirmLogout,
+            color: Colors.redAccent,
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF00D4AA), Color(0xFF0F3460)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.only(topRight: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.only(
+        left: 20,
+        right: 20,
+        top: MediaQuery.of(context).padding.top + 20,
+        bottom: 20,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const CircleAvatar(
+            radius: 36,
+            backgroundColor: Colors.black45,
+            child: Icon(Icons.person, color: Colors.white, size: 40),
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Haider Mushtaq',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Text(
+            '@haider_mushtaq',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+          const Text(
+            'haider@example.com',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _navTile(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String route,
+  }) {
+    final active = widget.currentRoute == route;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: ListTile(
+        leading: Icon(icon, color: active ? _accent : Colors.white),
+        title: Text(
+          label,
+          style: TextStyle(
+            color: active ? _accent : Colors.white,
+            fontWeight: active ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        tileColor: active ? _accent.withValues(alpha: 0.2) : null,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        onTap: () {
+          if (route == '/dashboard') {
+            Navigator.of(context).pop();
+          } else {
+            Navigator.of(context)
+              ..pop()
+              ..pushNamed(route);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _actionTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    Color color = Colors.white,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      child: ListTile(
+        leading: Icon(icon, color: color),
+        title: Text(label, style: TextStyle(color: color)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _showReminderDialog() {
+    int tempHours = _reminderHours;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: _bg,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text(
+            'Reminder Settings',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Payment reminder frequency',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ...[24, 48, 72].map((h) {
+                final selected = tempHours == h;
+                return InkWell(
+                  onTap: () => setDialogState(() => tempHours = h),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selected ? _accent : Colors.grey,
+                              width: 2,
+                            ),
+                          ),
+                          child: selected
+                              ? Center(
+                                  child: Container(
+                                    width: 10,
+                                    height: 10,
+                                    decoration: const BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: _accent,
+                                    ),
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Every ${h}hrs',
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                setState(() => _reminderHours = tempHours);
+                Navigator.of(ctx).pop();
+              },
+              child: const Text(
+                'Save',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _bg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.account_balance_wallet_rounded, color: _accent, size: 24),
+            SizedBox(width: 10),
+            Text(
+              'FairShare',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Version 1.0.0', style: TextStyle(color: Colors.grey, fontSize: 13)),
+            const Text(
+              'Split smart. Settle easy.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Team',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...['Haider Mushtaq', 'Mohsin Ashraf', 'Shumail Khan', 'Haider Zahoor'].map(
+              (name) => Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    const Icon(Icons.person_outline, color: _accent, size: 14),
+                    const SizedBox(width: 6),
+                    Text(name, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _accent,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text(
+              'Close',
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _bg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Logout',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to logout?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pushReplacementNamed('/login');
+            },
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
