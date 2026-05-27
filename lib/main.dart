@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_theme.dart';
-import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +24,7 @@ class FairShareApp extends StatelessWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         themeMode: mode,
-        home: const DashboardScreen(),
+        home: const SplashScreen(),
       ),
     );
   }
