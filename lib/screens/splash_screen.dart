@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,7 +25,10 @@ class _SplashScreenState extends State<SplashScreen>
 
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        final session = Supabase.instance.client.auth.currentUser;
+        Navigator.of(context).pushReplacementNamed(
+          session != null ? '/dashboard' : '/login',
+        );
       }
     });
   }
