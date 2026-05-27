@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
-import 'group_detail_screen.dart';
 
 class Group {
+  final String id;
   final String name;
   final int memberCount;
   final String lastExpense;
   final double balance;
 
   const Group({
+    required this.id,
     required this.name,
     required this.memberCount,
     required this.lastExpense,
@@ -17,18 +18,21 @@ class Group {
 
 final _dummyGroups = [
   const Group(
+    id: 'roommates',
     name: 'Roommates',
     memberCount: 3,
     lastExpense: 'Electricity Bill - PKR 2000',
     balance: -1500,
   ),
   const Group(
+    id: 'trip_to_murree',
     name: 'Trip to Murree',
     memberCount: 5,
     lastExpense: 'Hotel Stay - PKR 8000',
     balance: 3200,
   ),
   const Group(
+    id: 'office_lunch',
     name: 'Office Lunch',
     memberCount: 4,
     lastExpense: 'Dinner - PKR 500',
@@ -47,7 +51,6 @@ class _GroupsScreenState extends State<GroupsScreen> {
   static const _bg = Color(0xFF1A1A2E);
   static const _accent = Color(0xFF00D4AA);
   static const _cardDark = Color(0xFF0F3460);
-  static const _red = Color(0xFFFF6B6B);
 
   final _groupNameController = TextEditingController();
   List<Group> _groups = List.from(_dummyGroups);
@@ -113,6 +116,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
               final name = _groupNameController.text.trim();
               if (name.isEmpty) return;
               final newGroup = Group(
+                id: name.toLowerCase().replaceAll(' ', '_'),
                 name: name,
                 memberCount: 1,
                 lastExpense: 'No expenses yet',
@@ -194,9 +198,12 @@ class _GroupsScreenState extends State<GroupsScreen> {
       itemCount: _filtered.length,
       itemBuilder: (context, index) => _GroupCard(
         group: _filtered[index],
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-              builder: (_) => GroupDetailScreen(group: _filtered[index])),
+        onTap: () => Navigator.of(context).pushNamed(
+          '/group-detail',
+          arguments: {
+            'groupName': _filtered[index].name,
+            'groupId': _filtered[index].id,
+          },
         ),
       ),
     );

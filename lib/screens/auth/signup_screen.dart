@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'login_screen.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -255,9 +254,8 @@ class _SignupScreenState extends State<SignupScreen> {
               // Login row
               Center(
                 child: GestureDetector(
-                  onTap: () => Navigator.of(context).pushReplacement(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  ),
+                  onTap: () =>
+                      Navigator.of(context).pushReplacementNamed('/login'),
                   child: RichText(
                     text: const TextSpan(
                       style: TextStyle(color: Colors.grey, fontSize: 14),

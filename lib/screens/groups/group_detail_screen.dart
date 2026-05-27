@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'groups_screen.dart';
-import '../expenses/add_expense_screen.dart';
-import '../settle/settle_up_screen.dart';
 
 class _Member {
   final String name;
@@ -70,9 +67,14 @@ final _dummyExpenses = [
 ];
 
 class GroupDetailScreen extends StatefulWidget {
-  final Group group;
+  final String groupName;
+  final String groupId;
 
-  const GroupDetailScreen({super.key, required this.group});
+  const GroupDetailScreen({
+    super.key,
+    required this.groupName,
+    required this.groupId,
+  });
 
   @override
   State<GroupDetailScreen> createState() => _GroupDetailScreenState();
@@ -102,7 +104,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         backgroundColor: _bg,
         elevation: 0,
         title: Text(
-          widget.group.name,
+          widget.groupName,
           style: const TextStyle(
               color: Colors.white, fontWeight: FontWeight.bold),
         ),
@@ -130,13 +132,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => AddExpenseScreen(
-              groupId: widget.group.name.toLowerCase().replaceAll(' ', '_'),
-              groupName: widget.group.name,
-            ),
-          ),
+        onPressed: () => Navigator.of(context).pushNamed(
+          '/add-expense',
+          arguments: {
+            'groupId': widget.groupId,
+            'groupName': widget.groupName,
+          },
         ),
         backgroundColor: _accent,
         icon: const Icon(Icons.add, color: Colors.black),
@@ -262,11 +263,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ),
           const SizedBox(height: 16),
           OutlinedButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => SettleUpScreen(
-                    groupId: widget.group.name),
-              ),
+            onPressed: () => Navigator.of(context).pushNamed(
+              '/settle-up',
+              arguments: {'groupId': widget.groupId},
             ),
             style: OutlinedButton.styleFrom(
               side: const BorderSide(color: _accent),
