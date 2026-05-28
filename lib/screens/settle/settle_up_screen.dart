@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/expense_model.dart';
 import '../../services/expenses_service.dart';
+import '../../services/notification_service.dart';
+import '../../widgets/lottie_widget.dart';
 
 final _settleUpProvider =
     FutureProvider<List<DebtItem>>((ref) async {
@@ -75,14 +77,10 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
           .settleExpense(debt.expenseId, _currentUserId);
       ref.invalidate(_settleUpProvider);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Payment marked as settled!'),
-            backgroundColor: _accent,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10)),
-          ),
+        await _showPaymentSuccessSheet(debt);
+        NotificationService().showSettlementNotification(
+          name: debt.name,
+          amount: debt.amount,
         );
       }
     } catch (e) {
@@ -96,6 +94,48 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
         );
       }
     }
+  }
+
+  Future<void> _showPaymentSuccessSheet(DebtItem debt) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const LottieWidget(
+              assetPath: 'assets/animations/payment_success.json',
+              width: 150,
+              height: 150,
+              repeat: false,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Payment Settled!',
+              style: TextStyle(
+                color: Theme.of(ctx).colorScheme.onSurface,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'PKR ${debt.amount.toStringAsFixed(0)} to ${debt.name} is marked as paid.',
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    await Future.delayed(const Duration(milliseconds: 2000));
+    if (mounted) Navigator.of(context).pop();
   }
 
   void _sendReminder(DebtItem debt) {
@@ -120,8 +160,14 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
         title: const Text('Settle Up'),
       ),
       body: settleAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+        child: LottieWidget(
+          assetPath: 'assets/animations/loading.json',
+          width: 100,
+          height: 100,
+          repeat: true,
+        ),
+      ),
         error: (e, _) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -366,26 +412,17 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _accent.withValues(alpha: 0.15),
-                    border: Border.all(
-                        color: _accent.withValues(alpha: 0.4),
-                        width: 2),
-                  ),
-                  child: const Icon(Icons.check_rounded,
-                      color: _accent, size: 56),
+                const LottieWidget(
+                  assetPath: 'assets/animations/celebration.json',
+                  width: 250,
+                  height: 250,
+                  repeat: false,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 8),
                 Text(
-                  'All settled up!',
+                  'All Settled Up!',
                   style: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface,
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontSize: 24,
                     fontWeight: FontWeight.bold,
                   ),
@@ -393,26 +430,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   'You have no pending payments',
-                  style: TextStyle(
-                      color: Colors.grey, fontSize: 15),
-                ),
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (i) {
-                    final isCenter = i == 2;
-                    return Container(
-                      margin: const EdgeInsets.symmetric(
-                          horizontal: 4),
-                      width: isCenter ? 14 : 8,
-                      height: isCenter ? 14 : 8,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: _accent.withValues(
-                            alpha: isCenter ? 1.0 : 0.35),
-                      ),
-                    );
-                  }),
+                  style: TextStyle(color: Colors.grey, fontSize: 15),
                 ),
               ],
             ),

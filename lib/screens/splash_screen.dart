@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../widgets/lottie_widget.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -10,18 +11,19 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
+  late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
-    _controller.forward();
+    _fadeAnimation =
+        CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
+    _fadeController.forward();
 
     Future.delayed(const Duration(milliseconds: 2500), () {
       if (mounted) {
@@ -36,7 +38,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   void dispose() {
-    _controller.dispose();
+    _fadeController.dispose();
     super.dispose();
   }
 
@@ -51,10 +53,11 @@ class _SplashScreenState extends State<SplashScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              Icon(
-                Icons.account_balance_wallet_rounded,
-                color: onSurface,
-                size: 80,
+              const LottieWidget(
+                assetPath: 'assets/animations/wallet.json',
+                width: 150,
+                height: 150,
+                repeat: true,
               ),
               const SizedBox(height: 24),
               Text(
@@ -69,17 +72,16 @@ class _SplashScreenState extends State<SplashScreen>
               const SizedBox(height: 10),
               const Text(
                 'Split smart. Settle easy.',
-                style: TextStyle(
-                  color: Colors.grey,
-                  fontSize: 16,
-                ),
+                style: TextStyle(color: Colors.grey, fontSize: 16),
               ),
               const Spacer(),
-              const CircularProgressIndicator(
-                valueColor:
-                    AlwaysStoppedAnimation<Color>(Color(0xFF00D4AA)),
+              const LottieWidget(
+                assetPath: 'assets/animations/loading.json',
+                width: 100,
+                height: 100,
+                repeat: true,
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 24),
             ],
           ),
         ),

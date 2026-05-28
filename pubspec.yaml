@@ -39,6 +39,7 @@ dependencies:
   supabase_flutter: ^2.3.0
   flutter_dotenv: ^5.1.0
   flutter_local_notifications: ^16.3.0
+  lottie: ^3.1.0
 
 dev_dependencies:
   flutter_test:
@@ -64,6 +65,7 @@ flutter:
 
   assets:
     - .env
+    - assets/animations/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

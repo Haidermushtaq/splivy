@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/group_model.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/groups_service.dart';
+import '../../widgets/lottie_widget.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
   const GroupsScreen({super.key});
@@ -144,7 +145,14 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         ],
       ),
       body: groupsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const Center(
+        child: LottieWidget(
+          assetPath: 'assets/animations/loading.json',
+          width: 100,
+          height: 100,
+          repeat: true,
+        ),
+      ),
         error: (e, _) => Center(
           child: Text('Error: $e',
               style: const TextStyle(color: Colors.grey)),
@@ -192,8 +200,12 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.group_outlined, color: Colors.grey, size: 64),
-              const SizedBox(height: 16),
+              const LottieWidget(
+                assetPath: 'assets/animations/empty.json',
+                width: 200,
+                height: 200,
+                repeat: true,
+              ),
               Text(
                 'No groups yet.',
                 style: TextStyle(

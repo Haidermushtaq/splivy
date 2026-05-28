@@ -4,6 +4,7 @@ import '../../models/friend_model.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/friends_service.dart';
+import '../../widgets/lottie_widget.dart';
 import 'friend_detail_screen.dart';
 
 class FriendsScreen extends ConsumerStatefulWidget {
@@ -122,7 +123,14 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             ),
             friendsAsync.when(
               loading: () => const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator()),
+                child: Center(
+                  child: LottieWidget(
+                    assetPath: 'assets/animations/loading.json',
+                    width: 100,
+                    height: 100,
+                    repeat: true,
+                  ),
+                ),
               ),
               error: (e, _) => SliverFillRemaining(
                 child: Center(
@@ -292,9 +300,12 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.people_outline,
-              color: Colors.grey, size: 64),
-          const SizedBox(height: 16),
+          const LottieWidget(
+            assetPath: 'assets/animations/empty.json',
+            width: 200,
+            height: 200,
+            repeat: true,
+          ),
           Text(
             'No friends yet.',
             style: TextStyle(
