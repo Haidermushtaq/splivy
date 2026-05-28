@@ -29,6 +29,8 @@ class Expense {
     required this.createdAt,
   });
 
+  factory Expense.fromJson(Map<String, dynamic> json) => Expense.fromMap(json);
+
   factory Expense.fromMap(
     Map<String, dynamic> map, {
     String paidByName = 'Unknown',
