@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/group_model.dart';
-import '../../providers/groups_provider.dart';
+import '../../providers/realtime_provider.dart';
 import '../../services/groups_service.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
@@ -84,7 +84,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
               Navigator.of(ctx).pop();
               try {
                 await GroupsService().createGroup(name);
-                ref.invalidate(userGroupsProvider);
+                ref.invalidate(userGroupsStreamProvider);
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -106,7 +106,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final groupsAsync = ref.watch(userGroupsProvider);
+    // Use real-time stream so the list refreshes when memberships or
+    // expenses change without requiring manual pull-to-refresh.
+    final groupsAsync = ref.watch(userGroupsStreamProvider);
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Scaffold(
@@ -150,7 +152,7 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         data: (groups) {
           final filtered = _filtered(groups);
           return RefreshIndicator(
-            onRefresh: () async => ref.invalidate(userGroupsProvider),
+            onRefresh: () async => ref.invalidate(userGroupsStreamProvider),
             child: filtered.isEmpty
                 ? _buildEmptyState(onSurface)
                 : _buildList(filtered),

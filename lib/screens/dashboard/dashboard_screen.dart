@@ -5,17 +5,20 @@ import '../groups/groups_screen.dart';
 import '../friends/friends_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../widgets/app_drawer.dart';
-import '../../providers/expenses_provider.dart';
+import '../../widgets/connection_status_bar.dart';
+import '../../providers/realtime_provider.dart';
+import '../../services/notification_service.dart';
 
-class DashboardScreen extends StatefulWidget {
+class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   int _currentIndex = 0;
+  int _prevPendingCount = 0;
 
   String get _currentRoute {
     const routes = ['/dashboard', '/groups', '/friends', '/profile'];
@@ -27,7 +30,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Theme.of(ctx).cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
           'Exit FairShare?',
           style: TextStyle(
@@ -62,6 +66,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final pendingAsync = ref.watch(friendRequestsStreamProvider);
+    final pendingCount = pendingAsync.value?.length ?? 0;
+
+    // Notify when a new friend request arrives.
+    ref.listen<AsyncValue<List>>(friendRequestsStreamProvider, (prev, next) {
+      next.whenData((requests) {
+        final count = requests.length;
+        if (count > _prevPendingCount && _prevPendingCount >= 0) {
+          final newest = requests.first;
+          NotificationService().showFriendRequestNotification(
+            (newest as dynamic).username as String,
+          );
+        }
+        _prevPendingCount = count;
+      });
+    });
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -70,8 +91,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Scaffold(
         appBar: _buildAppBar(),
         drawer: AppDrawer(currentRoute: _currentRoute),
-        body: _buildBody(),
-        bottomNavigationBar: _buildBottomNav(),
+        body: Column(
+          children: [
+            const ConnectionStatusBar(),
+            Expanded(child: _buildBody()),
+          ],
+        ),
+        bottomNavigationBar:
+            _buildBottomNav(pendingCount),
       ),
     );
   }
@@ -103,17 +130,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  BottomNavigationBar _buildBottomNav() {
+  BottomNavigationBar _buildBottomNav(int pendingCount) {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-        BottomNavigationBarItem(
+      items: [
+        const BottomNavigationBarItem(
+            icon: Icon(Icons.home_outlined), label: 'Home'),
+        const BottomNavigationBarItem(
             icon: Icon(Icons.group_outlined), label: 'Groups'),
         BottomNavigationBarItem(
-            icon: Icon(Icons.people_outline), label: 'Friends'),
-        BottomNavigationBarItem(
+          icon: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              const Icon(Icons.people_outline),
+              if (pendingCount > 0)
+                Positioned(
+                  right: -6,
+                  top: -4,
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints:
+                        const BoxConstraints(minWidth: 16, minHeight: 16),
+                    child: Text(
+                      pendingCount > 9 ? '9+' : '$pendingCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          label: 'Friends',
+        ),
+        const BottomNavigationBarItem(
             icon: Icon(Icons.person_outline), label: 'Profile'),
       ],
     );
@@ -122,7 +180,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildBody() {
     switch (_currentIndex) {
       case 0:
-        return _HomeTab();
+        return const _HomeTab();
       case 1:
         return const GroupsScreen();
       case 2:
@@ -140,9 +198,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 }
 
-// ── Home tab content ──────────────────────────────────────────────────────────
+// ── Home tab ──────────────────────────────────────────────────────────────────
 
 class _HomeTab extends StatelessWidget {
+  const _HomeTab();
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -150,9 +210,9 @@ class _HomeTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SummaryCard(),
+          const _SummaryCard(),
           const SizedBox(height: 24),
-          _QuickActions(),
+          const _QuickActions(),
           const SizedBox(height: 28),
           Text(
             'Recent Activity',
@@ -163,30 +223,79 @@ class _HomeTab extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
-          _EmptyActivity(),
+          const _EmptyActivity(),
         ],
       ),
     );
   }
 }
 
-class _SummaryCard extends ConsumerWidget {
+class _SummaryCard extends ConsumerStatefulWidget {
+  const _SummaryCard();
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final balanceAsync = ref.watch(userBalanceProvider);
+  ConsumerState<_SummaryCard> createState() => _SummaryCardState();
+}
+
+class _SummaryCardState extends ConsumerState<_SummaryCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseAnimation;
+  String? _prevNetText;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _pulseAnimation = Tween<double>(begin: 1.0, end: 1.06).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _triggerPulse() {
+    _pulseController.forward().then((_) => _pulseController.reverse());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final balanceAsync = ref.watch(userBalanceStreamProvider);
 
     return balanceAsync.when(
-      loading: () => _buildCard(
-          context, netBalance: 0, totalOwed: 0, totalOwing: 0),
-      error: (_, _) => _buildCard(
-          context, netBalance: 0, totalOwed: 0, totalOwing: 0),
-      data: (balance) => _buildCard(
-        context,
-        netBalance: balance.netBalance,
-        totalOwed: balance.totalOwed,
-        totalOwing: balance.totalOwing,
-      ),
+      loading: () =>
+          _buildCard(context, netBalance: 0, totalOwed: 0, totalOwing: 0),
+      error: (e, st) =>
+          _buildCard(context, netBalance: 0, totalOwed: 0, totalOwing: 0),
+      data: (balance) {
+        final netText = _formatNet(balance.netBalance);
+        if (_prevNetText != null && _prevNetText != netText) {
+          WidgetsBinding.instance
+              .addPostFrameCallback((_) => _triggerPulse());
+        }
+        _prevNetText = netText;
+        return _buildCard(
+          context,
+          netBalance: balance.netBalance,
+          totalOwed: balance.totalOwed,
+          totalOwing: balance.totalOwing,
+        );
+      },
     );
+  }
+
+  String _formatNet(double net) {
+    if (net == 0) return 'PKR 0.00';
+    return net > 0
+        ? '+PKR ${net.toStringAsFixed(2)}'
+        : '-PKR ${net.abs().toStringAsFixed(2)}';
   }
 
   Widget _buildCard(
@@ -198,75 +307,80 @@ class _SummaryCard extends ConsumerWidget {
     final netColor = netBalance >= 0
         ? const Color(0xFF00D4AA)
         : const Color(0xFFFF6B6B);
-    final netText = netBalance == 0
-        ? 'PKR 0.00'
-        : netBalance > 0
-            ? '+PKR ${netBalance.toStringAsFixed(2)}'
-            : '-PKR ${netBalance.abs().toStringAsFixed(2)}';
+    final netText = _formatNet(netBalance);
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F3460), Color(0xFF1A6B5A)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF00D4AA).withValues(alpha: 0.15),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+    return ScaleTransition(
+      scale: _pulseAnimation,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: const LinearGradient(
+            colors: [Color(0xFF0F3460), Color(0xFF1A6B5A)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'Total Balance',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            netText,
-            style: TextStyle(
-              color: netColor,
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF00D4AA).withValues(alpha: 0.15),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Divider(color: Colors.white12, thickness: 1),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: _BalanceStat(
-                  label: 'You Owe',
-                  amount: 'PKR ${totalOwing.toStringAsFixed(2)}',
-                  color: const Color(0xFFFF6B6B),
-                  icon: Icons.arrow_upward_rounded,
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Total Balance',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 400),
+              transitionBuilder: (child, anim) =>
+                  FadeTransition(opacity: anim, child: child),
+              child: Text(
+                netText,
+                key: ValueKey(netText),
+                style: TextStyle(
+                  color: netColor,
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
               ),
-              const SizedBox(
-                  width: 1,
-                  height: 40,
-                  child: ColoredBox(color: Colors.white12)),
-              Expanded(
-                child: _BalanceStat(
-                  label: "You're Owed",
-                  amount: 'PKR ${totalOwed.toStringAsFixed(2)}',
-                  color: const Color(0xFF00D4AA),
-                  icon: Icons.arrow_downward_rounded,
+            ),
+            const SizedBox(height: 20),
+            const Divider(color: Colors.white12, thickness: 1),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _BalanceStat(
+                    label: 'You Owe',
+                    amount: 'PKR ${totalOwing.toStringAsFixed(2)}',
+                    color: const Color(0xFFFF6B6B),
+                    icon: Icons.arrow_upward_rounded,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+                const SizedBox(
+                    width: 1,
+                    height: 40,
+                    child: ColoredBox(color: Colors.white12)),
+                Expanded(
+                  child: _BalanceStat(
+                    label: "You're Owed",
+                    amount: 'PKR ${totalOwed.toStringAsFixed(2)}',
+                    color: const Color(0xFF00D4AA),
+                    icon: Icons.arrow_downward_rounded,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -300,12 +414,16 @@ class _BalanceStat extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 4),
-        Text(
-          amount,
-          style: TextStyle(
-            color: color,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 400),
+          child: Text(
+            amount,
+            key: ValueKey(amount),
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ],
@@ -314,6 +432,8 @@ class _BalanceStat extends StatelessWidget {
 }
 
 class _QuickActions extends StatelessWidget {
+  const _QuickActions();
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -358,7 +478,8 @@ class _ActionButton extends StatelessWidget {
       onTap: onTap,
       child: Container(
         width: 100,
-        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        padding:
+            const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
           borderRadius: BorderRadius.circular(16),
@@ -385,13 +506,16 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _EmptyActivity extends StatelessWidget {
+  const _EmptyActivity();
+
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Column(
         children: [
           const SizedBox(height: 20),
-          const Icon(Icons.receipt_long_outlined, color: Colors.grey, size: 56),
+          const Icon(Icons.receipt_long_outlined,
+              color: Colors.grey, size: 56),
           const SizedBox(height: 16),
           Text(
             'No expenses yet.',

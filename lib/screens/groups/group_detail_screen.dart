@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../providers/groups_provider.dart';
+import '../../providers/realtime_provider.dart';
+import '../../services/notification_service.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   final String groupName;
@@ -22,6 +25,15 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
+  final _listKey = GlobalKey<AnimatedListState>();
+  List<Expense> _expenses = [];
+  bool _listInitialized = false;
+
+  // ── helpers ──────────────────────────────────────────────────────────────────
+
+  String? get _currentUserId =>
+      Supabase.instance.client.auth.currentUser?.id;
+
   IconData _categoryIcon(String category) {
     switch (category) {
       case 'Food':
@@ -39,8 +51,79 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     }
   }
 
+  // ── expense list management ───────────────────────────────────────────────────
+
+  void _handleExpensesUpdate(List<Expense> incoming) {
+    if (!_listInitialized) {
+      setState(() {
+        _expenses = List.from(incoming);
+        _listInitialized = true;
+      });
+      return;
+    }
+
+    final oldIds = _expenses.map((e) => e.id).toSet();
+    final newIds = incoming.map((e) => e.id).toSet();
+    final addedIds = newIds.difference(oldIds);
+    final removedIds = oldIds.difference(newIds);
+
+    // Insert new expenses at top with slide animation.
+    for (final addedId in addedIds) {
+      final expense = incoming.firstWhere((e) => e.id == addedId);
+      setState(() => _expenses.insert(0, expense));
+      _listKey.currentState?.insertItem(0,
+          duration: const Duration(milliseconds: 400));
+
+      if (expense.paidBy != _currentUserId && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('New expense added! ${expense.title}'),
+            backgroundColor: _accent.withValues(alpha: 0.95),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        NotificationService().showExpenseNotification(
+          groupName: widget.groupName,
+          expenseTitle: expense.title,
+          amount: expense.amount,
+        );
+      }
+    }
+
+    // Remove deleted expenses.
+    if (removedIds.isNotEmpty) {
+      for (int i = _expenses.length - 1; i >= 0; i--) {
+        if (removedIds.contains(_expenses[i].id)) {
+          final removed = _expenses[i];
+          _listKey.currentState?.removeItem(
+            i,
+            (ctx, animation) => FadeTransition(
+              opacity: animation,
+              child: _buildExpenseCard(removed),
+            ),
+          );
+          setState(() => _expenses.removeAt(i));
+        }
+      }
+    }
+
+    // Refresh balance + members when the expense list changes.
+    if (addedIds.isNotEmpty || removedIds.isNotEmpty) {
+      ref.invalidate(groupDetailProvider(widget.groupId));
+      ref.invalidate(userGroupsStreamProvider);
+    }
+  }
+
+  // ── build ─────────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Expense>>>(
+      groupExpensesStreamProvider(widget.groupId),
+      (_, next) => next.whenData(_handleExpensesUpdate),
+    );
+
     final detailAsync = ref.watch(groupDetailProvider(widget.groupId));
 
     return Scaffold(
@@ -50,49 +133,34 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                ref.invalidate(groupDetailProvider(widget.groupId)),
+            onPressed: () {
+              ref.invalidate(groupDetailProvider(widget.groupId));
+              ref.invalidate(groupExpensesStreamProvider(widget.groupId));
+            },
           ),
           IconButton(
-              icon: const Icon(Icons.settings_outlined), onPressed: () {}),
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () {},
+          ),
         ],
       ),
       body: detailAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.error_outline, color: Colors.grey, size: 48),
-              const SizedBox(height: 12),
-              Text('Error loading group: $e',
-                  style: const TextStyle(color: Colors.grey),
-                  textAlign: TextAlign.center),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () =>
-                    ref.invalidate(groupDetailProvider(widget.groupId)),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: _accent),
-                child: const Text('Retry',
-                    style: TextStyle(color: Colors.black)),
-              ),
-            ],
-          ),
-        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => _buildError(e),
         data: (detail) => RefreshIndicator(
           onRefresh: () async =>
               ref.invalidate(groupDetailProvider(widget.groupId)),
           child: ListView(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 12),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             children: [
               _buildMembersSection(detail.members),
               const SizedBox(height: 20),
               _buildBalanceCard(detail.group.userBalance),
               const SizedBox(height: 20),
-              _buildExpensesSection(detail.expenses),
+              _buildExpensesHeader(),
+              const SizedBox(height: 12),
+              _buildAnimatedExpenseList(),
               const SizedBox(height: 80),
             ],
           ),
@@ -116,6 +184,32 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           style: TextStyle(
               color: Colors.black, fontWeight: FontWeight.bold),
         ),
+      ),
+    );
+  }
+
+  // ── section widgets ───────────────────────────────────────────────────────────
+
+  Widget _buildError(Object e) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.grey, size: 48),
+          const SizedBox(height: 12),
+          Text('Error loading group: $e',
+              style: const TextStyle(color: Colors.grey),
+              textAlign: TextAlign.center),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () =>
+                ref.invalidate(groupDetailProvider(widget.groupId)),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: _accent),
+            child: const Text('Retry',
+                style: TextStyle(color: Colors.black)),
+          ),
+        ],
       ),
     );
   }
@@ -186,10 +280,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           child: const Icon(Icons.add, color: _accent, size: 24),
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Add',
-          style: TextStyle(color: Colors.grey, fontSize: 11),
-        ),
+        const Text('Add',
+            style: TextStyle(color: Colors.grey, fontSize: 11)),
       ],
     );
   }
@@ -205,7 +297,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       balanceText = 'All settled!';
       balanceColor = Theme.of(context).colorScheme.onSurface;
     } else if (isOwed) {
-      balanceText = 'You are owed PKR ${netBalance.toStringAsFixed(0)}';
+      balanceText =
+          'You are owed PKR ${netBalance.toStringAsFixed(0)}';
       balanceColor = _accent;
     } else {
       balanceText =
@@ -222,17 +315,19 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Your Balance',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
+          const Text('Your Balance',
+              style: TextStyle(color: Colors.grey, fontSize: 14)),
           const SizedBox(height: 8),
-          Text(
-            balanceText,
-            style: TextStyle(
-              color: balanceColor,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 400),
+            child: Text(
+              balanceText,
+              key: ValueKey(balanceText),
+              style: TextStyle(
+                color: balanceColor,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -246,35 +341,55 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text(
-              'Settle Up',
-              style: TextStyle(
-                  color: _accent, fontWeight: FontWeight.bold),
-            ),
+            child: const Text('Settle Up',
+                style: TextStyle(
+                    color: _accent, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildExpensesSection(List<Expense> expenses) {
+  Widget _buildExpensesHeader() {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Expenses (${expenses.length})',
-          style: TextStyle(
-              color: onSurface,
-              fontWeight: FontWeight.bold,
-              fontSize: 16),
+    return Text(
+      'Expenses (${_expenses.length})',
+      style: TextStyle(
+          color: onSurface, fontWeight: FontWeight.bold, fontSize: 16),
+    );
+  }
+
+  Widget _buildAnimatedExpenseList() {
+    if (!_listInitialized) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(32),
+          child: CircularProgressIndicator(),
         ),
-        const SizedBox(height: 12),
-        if (expenses.isEmpty)
-          _buildEmptyState()
-        else
-          ...expenses.map(_buildExpenseCard),
-      ],
+      );
+    }
+
+    if (_expenses.isEmpty) return _buildEmptyState();
+
+    return AnimatedList(
+      key: _listKey,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      initialItemCount: _expenses.length,
+      itemBuilder: (context, index, animation) {
+        if (index >= _expenses.length) return const SizedBox.shrink();
+        return SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, -0.3),
+            end: Offset.zero,
+          ).animate(CurvedAnimation(
+              parent: animation, curve: Curves.easeOut)),
+          child: FadeTransition(
+            opacity: animation,
+            child: _buildExpenseCard(_expenses[index]),
+          ),
+        );
+      },
     );
   }
 
@@ -306,11 +421,11 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12)),
+      shape:
+          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-            horizontal: 14, vertical: 12),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(
@@ -355,8 +470,8 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 const SizedBox(height: 4),
                 Text(
                   'PKR ${expense.amount.toStringAsFixed(0)} total',
-                  style:
-                      const TextStyle(color: Colors.grey, fontSize: 10),
+                  style: const TextStyle(
+                      color: Colors.grey, fontSize: 10),
                 ),
               ],
             ),

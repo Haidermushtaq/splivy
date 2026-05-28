@@ -7,6 +7,7 @@ import 'config/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
+import 'services/notification_service.dart';
 import 'utils/page_transitions.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -28,6 +29,7 @@ void main() async {
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
   );
+  await NotificationService().initialize();
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('theme_mode') ?? true;
   runApp(

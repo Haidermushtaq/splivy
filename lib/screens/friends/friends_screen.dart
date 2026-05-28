@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/friend_model.dart';
 import '../../providers/friends_provider.dart';
+import '../../providers/realtime_provider.dart';
 import '../../services/friends_service.dart';
 import 'friend_detail_screen.dart';
 
@@ -46,6 +47,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       builder: (_) => _AddFriendSheet(
         onSent: () {
           ref.invalidate(pendingRequestsProvider);
+          ref.invalidate(friendRequestsStreamProvider);
           ref.invalidate(friendsListProvider);
         },
       ),
@@ -56,6 +58,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
     try {
       await FriendsService().acceptFriendRequest(requestId);
       ref.invalidate(pendingRequestsProvider);
+      ref.invalidate(friendRequestsStreamProvider);
       ref.invalidate(friendsListProvider);
     } catch (e) {
       if (mounted) {
@@ -71,7 +74,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
   @override
   Widget build(BuildContext context) {
     final friendsAsync = ref.watch(friendsListProvider);
-    final pendingAsync = ref.watch(pendingRequestsProvider);
+    // Use real-time stream for pending requests so the badge in DashboardScreen
+    // and the list here both stay in sync without manual refresh.
+    final pendingAsync = ref.watch(friendRequestsStreamProvider);
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Scaffold(
@@ -86,6 +91,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             onPressed: () {
               ref.invalidate(friendsListProvider);
               ref.invalidate(pendingRequestsProvider);
+              ref.invalidate(friendRequestsStreamProvider);
             },
           ),
           const SizedBox(width: 8),
@@ -95,6 +101,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         onRefresh: () async {
           ref.invalidate(friendsListProvider);
           ref.invalidate(pendingRequestsProvider);
+          ref.invalidate(friendRequestsStreamProvider);
         },
         child: CustomScrollView(
           slivers: [
