@@ -8,6 +8,7 @@ class AuthService {
     required String username,
     required String email,
     required String password,
+    required String phone,
   }) async {
     final existing = await _client
         .from('profiles')
@@ -22,19 +23,11 @@ class AuthService {
     final response = await _client.auth.signUp(
       email: email,
       password: password,
-      data: {'full_name': fullName, 'username': username},
+      data: {'full_name': fullName, 'username': username, 'phone': phone},
     );
 
     final user = response.user;
     if (user == null) throw Exception('Sign up failed');
-
-    await _client.from('profiles').insert({
-      'id': user.id,
-      'full_name': fullName,
-      'username': username,
-      'email': email,
-      'created_at': DateTime.now().toIso8601String(),
-    });
 
     return user;
   }
