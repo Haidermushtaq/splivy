@@ -81,3 +81,44 @@ class DebtItem {
     required this.youOwe,
   });
 }
+
+class GuestSplit {
+  final String id;
+  final String expenseId;
+  final String guestName;
+  final String guestPhone;
+  final double amount;
+  final bool isSettled;
+  final DateTime createdAt;
+
+  const GuestSplit({
+    required this.id,
+    required this.expenseId,
+    required this.guestName,
+    required this.guestPhone,
+    required this.amount,
+    required this.isSettled,
+    required this.createdAt,
+  });
+}
+
+class GuestSplitInput {
+  final String guestName;
+  final String guestPhone;
+  final double amount;
+
+  const GuestSplitInput({
+    required this.guestName,
+    required this.guestPhone,
+    required this.amount,
+  });
+}
+
+class CustomExpenseDetail {
+  final Expense expense;
+  final List<GuestSplit> guests;
+
+  const CustomExpenseDetail({required this.expense, required this.guests});
+
+  bool get allSettled => guests.every((g) => g.isSettled);
+}

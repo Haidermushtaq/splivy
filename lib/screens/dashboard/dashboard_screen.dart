@@ -442,7 +442,7 @@ class _QuickActions extends StatelessWidget {
         _ActionButton(
           icon: Icons.add_circle_outline,
           label: 'Add Expense',
-          onTap: () {},
+          onTap: () => Navigator.of(context).pushNamed('/groups'),
         ),
         _ActionButton(
           icon: Icons.check_circle_outline,
@@ -450,9 +450,10 @@ class _QuickActions extends StatelessWidget {
           onTap: () => Navigator.of(context).pushNamed('/settle-up'),
         ),
         _ActionButton(
-          icon: Icons.person_add_outlined,
-          label: 'Add Friend',
-          onTap: () {},
+          icon: Icons.receipt_long_outlined,
+          label: 'One-time',
+          onTap: () =>
+              Navigator.of(context).pushNamed('/custom-expenses'),
         ),
       ],
     );

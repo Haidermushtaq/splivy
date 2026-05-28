@@ -20,6 +20,7 @@ import 'screens/groups/group_detail_screen.dart';
 import 'screens/expenses/add_expense_screen.dart';
 import 'screens/friends/friends_screen.dart';
 import 'screens/profile/profile_screen.dart';
+import 'screens/expenses/custom_expenses_screen.dart';
 import 'screens/settle/settle_up_screen.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
@@ -124,6 +125,8 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
         SettleUpScreen(groupId: args?['groupId'] as String?),
         settings,
       );
+    case '/custom-expenses':
+      return slideRoute(const CustomExpensesScreen(), settings);
     default:
       return slideRoute(const SplashScreen(), settings);
   }

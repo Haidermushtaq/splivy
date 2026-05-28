@@ -34,6 +34,7 @@ class _AppDrawerState extends State<AppDrawer> {
           _navTile(context, icon: Icons.home_outlined, label: 'Home', route: '/dashboard'),
           _navTile(context, icon: Icons.group_outlined, label: 'My Groups', route: '/groups'),
           _navTile(context, icon: Icons.people_outline, label: 'Friends', route: '/friends'),
+          _navTile(context, icon: Icons.receipt_long_outlined, label: 'One-time Expenses', route: '/custom-expenses'),
           _navTile(context, icon: Icons.payments_outlined, label: 'Settle Up', route: '/settle-up'),
           _navTile(context, icon: Icons.person_outline, label: 'Profile', route: '/profile'),
           Divider(color: dividerColor, indent: 16, endIndent: 16, height: 24),

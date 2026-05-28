@@ -14,7 +14,9 @@ class ExpensesService {
     required String paidBy,
     required Map<String, double> splits,
     String? note,
+    List<GuestSplitInput> guestSplits = const [],
   }) async {
+    final isCustom = guestSplits.isNotEmpty;
     final row = await _client
         .from('expenses')
         .insert({
@@ -23,22 +25,38 @@ class ExpensesService {
           'amount': amount,
           'paid_by': paidBy,
           'category': category,
+          'is_custom': isCustom,
           if (note != null) 'note': note, // ignore: use_null_aware_elements
         })
         .select()
         .single();
 
     final expenseId = row['id'] as String;
-    final splitRows = splits.entries
-        .map((e) => {
-              'expense_id': expenseId,
-              'user_id': e.key,
-              'amount': e.value,
-              'is_settled': false,
-            })
-        .toList();
 
-    await _client.from('expense_splits').insert(splitRows);
+    if (splits.isNotEmpty) {
+      final splitRows = splits.entries
+          .map((e) => {
+                'expense_id': expenseId,
+                'user_id': e.key,
+                'amount': e.value,
+                'is_settled': false,
+              })
+          .toList();
+      await _client.from('expense_splits').insert(splitRows);
+    }
+
+    if (guestSplits.isNotEmpty) {
+      final guestRows = guestSplits
+          .map((g) => {
+                'expense_id': expenseId,
+                'guest_name': g.guestName,
+                'guest_phone': g.guestPhone,
+                'amount': g.amount,
+                'is_settled': false,
+              })
+          .toList();
+      await _client.from('guest_splits').insert(guestRows);
+    }
 
     return Expense.fromMap(row, paidByName: 'You', userShare: 0, isSettled: false);
   }
@@ -255,10 +273,64 @@ class ExpensesService {
         .eq('user_id', userId);
   }
 
+  Future<List<CustomExpenseDetail>> getCustomExpenses() async {
+    final rows = await _client
+        .from('expenses')
+        .select()
+        .eq('paid_by', _userId)
+        .eq('is_custom', true)
+        .eq('is_archived', false)
+        .order('created_at', ascending: false);
+
+    final List<CustomExpenseDetail> result = [];
+    for (final e in rows as List) {
+      final guestRows = await _client
+          .from('guest_splits')
+          .select()
+          .eq('expense_id', e['id'] as String)
+          .order('created_at', ascending: true);
+
+      final guests = (guestRows as List)
+          .map((g) => GuestSplit(
+                id: g['id'] as String,
+                expenseId: g['expense_id'] as String,
+                guestName: g['guest_name'] as String,
+                guestPhone: g['guest_phone'] as String,
+                amount: (g['amount'] as num).toDouble(),
+                isSettled: g['is_settled'] as bool? ?? false,
+                createdAt: DateTime.parse(g['created_at'] as String),
+              ))
+          .toList();
+
+      result.add(CustomExpenseDetail(
+        expense: Expense.fromMap(e, paidByName: 'You'),
+        guests: guests,
+      ));
+    }
+    return result;
+  }
+
+  Future<void> settleGuestSplit(String guestSplitId) async {
+    await _client
+        .from('guest_splits')
+        .update({'is_settled': true})
+        .eq('id', guestSplitId);
+  }
+
   Future<void> archiveCustomExpense(String expenseId) async {
+    final unsettled = await _client
+        .from('guest_splits')
+        .select('id')
+        .eq('expense_id', expenseId)
+        .eq('is_settled', false);
+
+    if ((unsettled as List).isNotEmpty) {
+      throw Exception('All guests must be settled before archiving');
+    }
+
     await _client
         .from('expenses')
-        .update({'is_archived': true, 'is_custom': true})
+        .update({'is_archived': true})
         .eq('id', expenseId);
   }
 
