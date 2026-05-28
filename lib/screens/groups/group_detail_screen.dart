@@ -1,72 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/group_model.dart';
+import '../../models/expense_model.dart';
+import '../../providers/groups_provider.dart';
 
-class _Member {
-  final String name;
-  const _Member(this.name);
-}
-
-class _ExpenseItem {
-  final String title;
-  final double totalAmount;
-  final String paidBy;
-  final bool paidByYou;
-  final double shareAmount;
-  final bool youOwe;
-  final DateTime date;
-  final IconData icon;
-
-  _ExpenseItem({
-    required this.title,
-    required this.totalAmount,
-    required this.paidBy,
-    required this.paidByYou,
-    required this.shareAmount,
-    required this.youOwe,
-    required this.date,
-    required this.icon,
-  });
-}
-
-final _dummyMembers = const [
-  _Member('Ali'),
-  _Member('Mohsin'),
-  _Member('You'),
-];
-
-final _dummyExpenses = [
-  _ExpenseItem(
-    title: 'Groceries',
-    totalAmount: 1500,
-    paidBy: 'Ali',
-    paidByYou: false,
-    shareAmount: 500,
-    youOwe: true,
-    date: DateTime(2026, 5, 24),
-    icon: Icons.shopping_cart_outlined,
-  ),
-  _ExpenseItem(
-    title: 'Electricity Bill',
-    totalAmount: 2400,
-    paidBy: 'You',
-    paidByYou: true,
-    shareAmount: 1600,
-    youOwe: false,
-    date: DateTime(2026, 5, 22),
-    icon: Icons.bolt_outlined,
-  ),
-  _ExpenseItem(
-    title: 'Internet',
-    totalAmount: 1200,
-    paidBy: 'Mohsin',
-    paidByYou: false,
-    shareAmount: 400,
-    youOwe: true,
-    date: DateTime(2026, 5, 20),
-    icon: Icons.wifi,
-  ),
-];
-
-class GroupDetailScreen extends StatefulWidget {
+class GroupDetailScreen extends ConsumerStatefulWidget {
   final String groupName;
   final String groupId;
 
@@ -77,65 +15,112 @@ class GroupDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<GroupDetailScreen> createState() => _GroupDetailScreenState();
+  ConsumerState<GroupDetailScreen> createState() => _GroupDetailScreenState();
 }
 
-class _GroupDetailScreenState extends State<GroupDetailScreen> {
+class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
-  final List<_ExpenseItem> _expenses = List.from(_dummyExpenses);
-
-  double get _netBalance {
-    double net = 0;
-    for (final e in _expenses) {
-      net += e.youOwe ? -e.shareAmount : e.shareAmount;
+  IconData _categoryIcon(String category) {
+    switch (category) {
+      case 'Food':
+        return Icons.restaurant_outlined;
+      case 'Transport':
+        return Icons.directions_car_outlined;
+      case 'Shopping':
+        return Icons.shopping_bag_outlined;
+      case 'Utilities':
+        return Icons.bolt_outlined;
+      case 'Entertainment':
+        return Icons.movie_outlined;
+      default:
+        return Icons.category_outlined;
     }
-    return net;
   }
 
   @override
   Widget build(BuildContext context) {
+    final detailAsync = ref.watch(groupDetailProvider(widget.groupId));
+
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
         title: Text(widget.groupName),
         actions: [
-          IconButton(icon: const Icon(Icons.search), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () =>
+                ref.invalidate(groupDetailProvider(widget.groupId)),
+          ),
           IconButton(
               icon: const Icon(Icons.settings_outlined), onPressed: () {}),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        children: [
-          _buildMembersSection(),
-          const SizedBox(height: 20),
-          _buildBalanceCard(),
-          const SizedBox(height: 20),
-          _buildExpensesSection(),
-          const SizedBox(height: 80),
-        ],
+      body: detailAsync.when(
+        loading: () =>
+            const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.grey, size: 48),
+              const SizedBox(height: 12),
+              Text('Error loading group: $e',
+                  style: const TextStyle(color: Colors.grey),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () =>
+                    ref.invalidate(groupDetailProvider(widget.groupId)),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _accent),
+                child: const Text('Retry',
+                    style: TextStyle(color: Colors.black)),
+              ),
+            ],
+          ),
+        ),
+        data: (detail) => RefreshIndicator(
+          onRefresh: () async =>
+              ref.invalidate(groupDetailProvider(widget.groupId)),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 12),
+            children: [
+              _buildMembersSection(detail.members),
+              const SizedBox(height: 20),
+              _buildBalanceCard(detail.group.userBalance),
+              const SizedBox(height: 20),
+              _buildExpensesSection(detail.expenses),
+              const SizedBox(height: 80),
+            ],
+          ),
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.of(context).pushNamed(
-          '/add-expense',
-          arguments: {
-            'groupId': widget.groupId,
-            'groupName': widget.groupName,
-          },
-        ),
+        onPressed: () => Navigator.of(context)
+            .pushNamed(
+              '/add-expense',
+              arguments: {
+                'groupId': widget.groupId,
+                'groupName': widget.groupName,
+              },
+            )
+            .then((_) =>
+                ref.invalidate(groupDetailProvider(widget.groupId))),
         backgroundColor: _accent,
         icon: const Icon(Icons.add, color: Colors.black),
         label: const Text(
           'Add Expense',
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+              color: Colors.black, fontWeight: FontWeight.bold),
         ),
       ),
     );
   }
 
-  Widget _buildMembersSection() {
+  Widget _buildMembersSection(List<GroupMember> members) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -143,19 +128,21 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
         Text(
           'Members',
           style: TextStyle(
-              color: onSurface, fontWeight: FontWeight.bold, fontSize: 16),
+              color: onSurface,
+              fontWeight: FontWeight.bold,
+              fontSize: 16),
         ),
         const SizedBox(height: 12),
         SizedBox(
           height: 80,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: _dummyMembers.length + 1,
+            itemCount: members.length + 1,
             itemBuilder: (context, index) {
-              if (index == _dummyMembers.length) {
+              if (index == members.length) {
                 return _buildAddMemberButton();
               }
-              return _buildMemberAvatar(_dummyMembers[index]);
+              return _buildMemberAvatar(members[index]);
             },
           ),
         ),
@@ -163,7 +150,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildMemberAvatar(_Member member) {
+  Widget _buildMemberAvatar(GroupMember member) {
     return Padding(
       padding: const EdgeInsets.only(right: 16),
       child: Column(
@@ -172,7 +159,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             radius: 26,
             backgroundColor: _accent,
             child: Text(
-              member.name[0].toUpperCase(),
+              member.fullName[0].toUpperCase(),
               style: const TextStyle(
                 color: Colors.black,
                 fontWeight: FontWeight.bold,
@@ -182,7 +169,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            member.name,
+            member.fullName.split(' ').first,
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
         ],
@@ -207,10 +194,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildBalanceCard() {
-    final net = _netBalance;
-    final isSettled = net == 0;
-    final isOwed = net > 0;
+  Widget _buildBalanceCard(double netBalance) {
+    final isSettled = netBalance == 0;
+    final isOwed = netBalance > 0;
 
     final String balanceText;
     final Color balanceColor;
@@ -219,10 +205,11 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       balanceText = 'All settled!';
       balanceColor = Theme.of(context).colorScheme.onSurface;
     } else if (isOwed) {
-      balanceText = 'You are owed PKR ${net.toStringAsFixed(0)}';
+      balanceText = 'You are owed PKR ${netBalance.toStringAsFixed(0)}';
       balanceColor = _accent;
     } else {
-      balanceText = 'You owe PKR ${net.abs().toStringAsFixed(0)}';
+      balanceText =
+          'You owe PKR ${netBalance.abs().toStringAsFixed(0)}';
       balanceColor = _red;
     }
 
@@ -261,7 +248,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
             ),
             child: const Text(
               'Settle Up',
-              style: TextStyle(color: _accent, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                  color: _accent, fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -269,48 +257,67 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     );
   }
 
-  Widget _buildExpensesSection() {
+  Widget _buildExpensesSection(List<Expense> expenses) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Expenses (${_expenses.length})',
+          'Expenses (${expenses.length})',
           style: TextStyle(
-              color: onSurface, fontWeight: FontWeight.bold, fontSize: 16),
+              color: onSurface,
+              fontWeight: FontWeight.bold,
+              fontSize: 16),
         ),
         const SizedBox(height: 12),
-        if (_expenses.isEmpty)
+        if (expenses.isEmpty)
           _buildEmptyState()
         else
-          ..._expenses.map(_buildExpenseCard),
+          ...expenses.map(_buildExpenseCard),
       ],
     );
   }
 
-  Widget _buildExpenseCard(_ExpenseItem expense) {
-    final shareColor = expense.youOwe ? _red : _accent;
-    final shareText = expense.youOwe
-        ? 'You owe PKR ${expense.shareAmount.toStringAsFixed(0)}'
-        : '+PKR ${expense.shareAmount.toStringAsFixed(0)}';
-    final paidByText =
-        expense.paidByYou ? 'Paid by You' : 'Paid by ${expense.paidBy}';
-    final date = expense.date;
+  Widget _buildExpenseCard(Expense expense) {
+    final youOwe = !expense.isSettled &&
+        expense.paidByName != 'You' &&
+        expense.userShare > 0;
+    final youAreOwed = !expense.isSettled &&
+        expense.paidByName == 'You' &&
+        expense.userShare > 0;
+
+    final shareColor =
+        expense.isSettled ? Colors.grey : (youOwe ? _red : _accent);
+    final shareText = expense.isSettled
+        ? 'Settled'
+        : youOwe
+            ? 'You owe PKR ${expense.userShare.toStringAsFixed(0)}'
+            : youAreOwed
+                ? '+PKR ${expense.userShare.toStringAsFixed(0)}'
+                : 'PKR ${expense.amount.toStringAsFixed(0)}';
+
+    final paidByText = expense.paidByName == 'You'
+        ? 'Paid by You'
+        : 'Paid by ${expense.paidByName}';
+    final date = expense.createdAt;
     final dateText =
         '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}';
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 14, vertical: 12),
         child: Row(
           children: [
             CircleAvatar(
               radius: 22,
               backgroundColor: _accent.withValues(alpha: 0.15),
-              child: Icon(expense.icon, color: _accent, size: 22),
+              child: Icon(_categoryIcon(expense.category),
+                  color: _accent, size: 22),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -326,12 +333,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                   ),
                   const SizedBox(height: 3),
                   Text(dateText,
-                      style:
-                          const TextStyle(color: Colors.grey, fontSize: 11)),
+                      style: const TextStyle(
+                          color: Colors.grey, fontSize: 11)),
                   const SizedBox(height: 2),
                   Text(paidByText,
-                      style:
-                          const TextStyle(color: Colors.grey, fontSize: 11)),
+                      style: const TextStyle(
+                          color: Colors.grey, fontSize: 11)),
                 ],
               ),
             ),
@@ -347,8 +354,9 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'PKR ${expense.totalAmount.toStringAsFixed(0)} total',
-                  style: const TextStyle(color: Colors.grey, fontSize: 10),
+                  'PKR ${expense.amount.toStringAsFixed(0)} total',
+                  style:
+                      const TextStyle(color: Colors.grey, fontSize: 10),
                 ),
               ],
             ),
@@ -364,7 +372,8 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       child: Center(
         child: Column(
           children: [
-            Icon(Icons.receipt_long_outlined, color: Colors.grey, size: 48),
+            Icon(Icons.receipt_long_outlined,
+                color: Colors.grey, size: 48),
             SizedBox(height: 12),
             Text(
               'No expenses yet in this group',

@@ -1,0 +1,268 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../models/expense_model.dart';
+
+class ExpensesService {
+  final _client = Supabase.instance.client;
+
+  String get _userId => _client.auth.currentUser!.id;
+
+  Future<Expense> addExpense({
+    required String groupId,
+    required String title,
+    required double amount,
+    required String category,
+    required String paidBy,
+    required Map<String, double> splits,
+    String? note,
+  }) async {
+    final row = await _client
+        .from('expenses')
+        .insert({
+          'group_id': groupId,
+          'title': title,
+          'amount': amount,
+          'paid_by': paidBy,
+          'category': category,
+          if (note != null) 'note': note, // ignore: use_null_aware_elements
+        })
+        .select()
+        .single();
+
+    final expenseId = row['id'] as String;
+    final splitRows = splits.entries
+        .map((e) => {
+              'expense_id': expenseId,
+              'user_id': e.key,
+              'amount': e.value,
+              'is_settled': false,
+            })
+        .toList();
+
+    await _client.from('expense_splits').insert(splitRows);
+
+    return Expense.fromMap(row, paidByName: 'You', userShare: 0, isSettled: false);
+  }
+
+  Future<List<Expense>> getGroupExpenses(String groupId) async {
+    final rows = await _client
+        .from('expenses')
+        .select()
+        .eq('group_id', groupId)
+        .eq('is_archived', false)
+        .order('created_at', ascending: false);
+
+    final List<Expense> result = [];
+    for (final e in rows as List) {
+      final paidById = e['paid_by'] as String;
+
+      String paidByName = 'Unknown';
+      final profile = await _client
+          .from('profiles')
+          .select('full_name')
+          .eq('id', paidById)
+          .maybeSingle();
+      if (profile != null) {
+        paidByName = paidById == _userId ? 'You' : (profile['full_name'] as String);
+      }
+
+      final mySplit = await _client
+          .from('expense_splits')
+          .select('amount, is_settled')
+          .eq('expense_id', e['id'] as String)
+          .eq('user_id', _userId)
+          .maybeSingle();
+
+      double userShare = 0;
+      bool isSettled = true;
+
+      if (mySplit != null) {
+        userShare = (mySplit['amount'] as num).toDouble();
+        isSettled = mySplit['is_settled'] as bool? ?? false;
+        if (paidById == _userId) {
+          userShare = (e['amount'] as num).toDouble() - userShare;
+        }
+      } else if (paidById == _userId) {
+        final otherSplits = await _client
+            .from('expense_splits')
+            .select('amount, is_settled')
+            .eq('expense_id', e['id'] as String)
+            .neq('user_id', _userId);
+        double othersTotal = 0;
+        bool allSettled = true;
+        for (final s in otherSplits as List) {
+          othersTotal += (s['amount'] as num).toDouble();
+          if (!(s['is_settled'] as bool? ?? false)) allSettled = false;
+        }
+        userShare = othersTotal;
+        isSettled = allSettled;
+      }
+
+      result.add(Expense.fromMap(
+        e,
+        paidByName: paidByName,
+        userShare: userShare,
+        isSettled: isSettled,
+      ));
+    }
+
+    return result;
+  }
+
+  Future<UserBalance> getUserTotalBalance() async {
+    double totalOwed = 0;
+    double totalOwing = 0;
+
+    final myExpenses = await _client
+        .from('expenses')
+        .select('id, amount')
+        .eq('paid_by', _userId)
+        .eq('is_archived', false);
+
+    for (final exp in myExpenses as List) {
+      final splits = await _client
+          .from('expense_splits')
+          .select('amount, is_settled')
+          .eq('expense_id', exp['id'] as String)
+          .neq('user_id', _userId)
+          .eq('is_settled', false);
+      for (final s in splits as List) {
+        totalOwed += (s['amount'] as num).toDouble();
+      }
+    }
+
+    final mySplits = await _client
+        .from('expense_splits')
+        .select('amount, is_settled, expense_id')
+        .eq('user_id', _userId)
+        .eq('is_settled', false);
+
+    for (final s in mySplits as List) {
+      final exp = await _client
+          .from('expenses')
+          .select('paid_by, is_archived')
+          .eq('id', s['expense_id'] as String)
+          .neq('paid_by', _userId)
+          .eq('is_archived', false)
+          .maybeSingle();
+      if (exp != null) {
+        totalOwing += (s['amount'] as num).toDouble();
+      }
+    }
+
+    return UserBalance(totalOwed: totalOwed, totalOwing: totalOwing);
+  }
+
+  Future<List<DebtItem>> getSettleUpData() async {
+    final List<DebtItem> debts = [];
+
+    final mySplits = await _client
+        .from('expense_splits')
+        .select('expense_id, amount')
+        .eq('user_id', _userId)
+        .eq('is_settled', false);
+
+    for (final s in mySplits as List) {
+      final exp = await _client
+          .from('expenses')
+          .select('id, title, group_id, paid_by, created_at')
+          .eq('id', s['expense_id'] as String)
+          .neq('paid_by', _userId)
+          .eq('is_archived', false)
+          .maybeSingle();
+
+      if (exp == null) continue;
+
+      final paidByProfile = await _client
+          .from('profiles')
+          .select('full_name')
+          .eq('id', exp['paid_by'] as String)
+          .maybeSingle();
+
+      final groupRow = await _client
+          .from('groups')
+          .select('name')
+          .eq('id', exp['group_id'] as String)
+          .maybeSingle();
+
+      final paidByName = paidByProfile?['full_name'] as String? ?? 'Unknown';
+      final groupName = groupRow?['name'] as String? ?? 'Unknown Group';
+      final createdAt = DateTime.parse(exp['created_at'] as String);
+      final dueSince =
+          '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+
+      debts.add(DebtItem(
+        expenseId: exp['id'] as String,
+        name: paidByName,
+        groupName: groupName,
+        dueSince: dueSince,
+        amount: (s['amount'] as num).toDouble(),
+        youOwe: true,
+      ));
+    }
+
+    final myPaidExpenses = await _client
+        .from('expenses')
+        .select('id, title, group_id, created_at')
+        .eq('paid_by', _userId)
+        .eq('is_archived', false);
+
+    for (final exp in myPaidExpenses as List) {
+      final unsettledSplits = await _client
+          .from('expense_splits')
+          .select('user_id, amount')
+          .eq('expense_id', exp['id'] as String)
+          .neq('user_id', _userId)
+          .eq('is_settled', false);
+
+      for (final s in unsettledSplits as List) {
+        final debtorProfile = await _client
+            .from('profiles')
+            .select('full_name')
+            .eq('id', s['user_id'] as String)
+            .maybeSingle();
+
+        final groupRow = await _client
+            .from('groups')
+            .select('name')
+            .eq('id', exp['group_id'] as String)
+            .maybeSingle();
+
+        final debtorName = debtorProfile?['full_name'] as String? ?? 'Unknown';
+        final groupName = groupRow?['name'] as String? ?? 'Unknown Group';
+        final createdAt = DateTime.parse(exp['created_at'] as String);
+        final dueSince =
+            '${createdAt.day}/${createdAt.month}/${createdAt.year}';
+
+        debts.add(DebtItem(
+          expenseId: exp['id'] as String,
+          name: debtorName,
+          groupName: groupName,
+          dueSince: dueSince,
+          amount: (s['amount'] as num).toDouble(),
+          youOwe: false,
+        ));
+      }
+    }
+
+    return debts;
+  }
+
+  Future<void> settleExpense(String expenseId, String userId) async {
+    await _client
+        .from('expense_splits')
+        .update({'is_settled': true})
+        .eq('expense_id', expenseId)
+        .eq('user_id', userId);
+  }
+
+  Future<void> archiveCustomExpense(String expenseId) async {
+    await _client
+        .from('expenses')
+        .update({'is_archived': true, 'is_custom': true})
+        .eq('id', expenseId);
+  }
+
+  Future<void> deleteExpense(String expenseId) async {
+    await _client.from('expenses').delete().eq('id', expenseId);
+  }
+}
