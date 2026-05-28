@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../utils/validators.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -12,6 +13,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _fullNameController = TextEditingController();
   final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -27,6 +29,7 @@ class _SignupScreenState extends State<SignupScreen> {
     _fullNameController.dispose();
     _usernameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
@@ -36,15 +39,23 @@ class _SignupScreenState extends State<SignupScreen> {
     final fullName = _fullNameController.text.trim();
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
     if (fullName.isEmpty ||
         username.isEmpty ||
         email.isEmpty ||
+        phone.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty) {
       _showError('Please fill in all fields');
+      return;
+    }
+
+    final phoneError = Validators.validatePhoneNumber(phone);
+    if (phoneError != null) {
+      _showError(phoneError);
       return;
     }
 
@@ -64,6 +75,7 @@ class _SignupScreenState extends State<SignupScreen> {
         fullName: fullName,
         username: username,
         email: email,
+        phone: phone,
         password: password,
       );
       if (mounted) {
@@ -94,13 +106,21 @@ class _SignupScreenState extends State<SignupScreen> {
         msg.contains('already registered')) {
       return 'An account with this email already exists';
     }
+    if (msg.contains('password should be at least') ||
+        msg.contains('weak password')) {
+      return 'Password must be at least 6 characters';
+    }
+    if (msg.contains('invalid email') || msg.contains('unable to validate')) {
+      return 'Please enter a valid email address';
+    }
     if (msg.contains('network') ||
         msg.contains('socketexception') ||
         msg.contains('connection refused') ||
         msg.contains('failed host lookup')) {
       return 'Please check your internet connection';
     }
-    return 'Something went wrong. Please try again.';
+    // Show the real error so we can diagnose it
+    return error.toString();
   }
 
   void _showError(String message) {
@@ -214,6 +234,18 @@ class _SignupScreenState extends State<SignupScreen> {
                 decoration: _fieldDecoration(
                   hint: 'Email',
                   prefixIcon: Icons.email_outlined,
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              TextField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                style: TextStyle(color: onSurface),
+                decoration: _fieldDecoration(
+                  hint: 'Phone number (e.g. 03001234567)',
+                  prefixIcon: Icons.phone_outlined,
                 ),
               ),
 
