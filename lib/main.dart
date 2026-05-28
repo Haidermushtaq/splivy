@@ -12,6 +12,7 @@ import 'utils/page_transitions.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
+import 'screens/auth/email_verification_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/groups/groups_screen.dart';
 import 'screens/groups/group_detail_screen.dart';
@@ -81,6 +82,12 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
       return slideRoute(const LoginScreen(), settings);
     case '/signup':
       return slideRoute(const SignupScreen(), settings);
+    case '/email-verification':
+      final args = settings.arguments as Map<String, dynamic>;
+      return slideRoute(
+        EmailVerificationScreen(email: args['email'] as String),
+        settings,
+      );
     case '/dashboard':
       return slideRoute(const DashboardScreen(), settings);
     case '/groups':

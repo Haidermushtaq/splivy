@@ -79,16 +79,10 @@ class _SignupScreenState extends State<SignupScreen> {
         password: password,
       );
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Account created! Please verify your email'),
-            backgroundColor: _accent,
-            behavior: SnackBarBehavior.floating,
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-          ),
+        Navigator.of(context).pushReplacementNamed(
+          '/email-verification',
+          arguments: {'email': email},
         );
-        Navigator.of(context).pushReplacementNamed('/login');
       }
     } catch (e) {
       if (mounted) _showError(_parseError(e));
