@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../groups/groups_screen.dart';
 import '../friends/friends_screen.dart';
 import '../profile/profile_screen.dart';
 import '../../widgets/app_drawer.dart';
+import '../../providers/expenses_provider.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -168,9 +170,40 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+class _SummaryCard extends ConsumerWidget {
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final balanceAsync = ref.watch(userBalanceProvider);
+
+    return balanceAsync.when(
+      loading: () => _buildCard(
+          context, netBalance: 0, totalOwed: 0, totalOwing: 0),
+      error: (_, _) => _buildCard(
+          context, netBalance: 0, totalOwed: 0, totalOwing: 0),
+      data: (balance) => _buildCard(
+        context,
+        netBalance: balance.netBalance,
+        totalOwed: balance.totalOwed,
+        totalOwing: balance.totalOwing,
+      ),
+    );
+  }
+
+  Widget _buildCard(
+    BuildContext context, {
+    required double netBalance,
+    required double totalOwed,
+    required double totalOwing,
+  }) {
+    final netColor = netBalance >= 0
+        ? const Color(0xFF00D4AA)
+        : const Color(0xFFFF6B6B);
+    final netText = netBalance == 0
+        ? 'PKR 0.00'
+        : netBalance > 0
+            ? '+PKR ${netBalance.toStringAsFixed(2)}'
+            : '-PKR ${netBalance.abs().toStringAsFixed(2)}';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(24),
@@ -189,42 +222,45 @@ class _SummaryCard extends StatelessWidget {
           ),
         ],
       ),
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
+          const Text(
             'Total Balance',
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
-          SizedBox(height: 8),
+          const SizedBox(height: 8),
           Text(
-            'PKR 0.00',
+            netText,
             style: TextStyle(
-              color: Colors.white,
+              color: netColor,
               fontSize: 36,
               fontWeight: FontWeight.bold,
               letterSpacing: 0.5,
             ),
           ),
-          SizedBox(height: 20),
-          Divider(color: Colors.white12, thickness: 1),
-          SizedBox(height: 16),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white12, thickness: 1),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
                 child: _BalanceStat(
                   label: 'You Owe',
-                  amount: 'PKR 0.00',
-                  color: Color(0xFFFF6B6B),
+                  amount: 'PKR ${totalOwing.toStringAsFixed(2)}',
+                  color: const Color(0xFFFF6B6B),
                   icon: Icons.arrow_upward_rounded,
                 ),
               ),
-              SizedBox(width: 1, height: 40, child: ColoredBox(color: Colors.white12)),
+              const SizedBox(
+                  width: 1,
+                  height: 40,
+                  child: ColoredBox(color: Colors.white12)),
               Expanded(
                 child: _BalanceStat(
                   label: "You're Owed",
-                  amount: 'PKR 0.00',
-                  color: Color(0xFF00D4AA),
+                  amount: 'PKR ${totalOwed.toStringAsFixed(2)}',
+                  color: const Color(0xFF00D4AA),
                   icon: Icons.arrow_downward_rounded,
                 ),
               ),

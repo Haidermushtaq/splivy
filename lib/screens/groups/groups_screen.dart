@@ -1,60 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/group_model.dart';
+import '../../providers/groups_provider.dart';
+import '../../services/groups_service.dart';
 
-class Group {
-  final String id;
-  final String name;
-  final int memberCount;
-  final String lastExpense;
-  final double balance;
-
-  const Group({
-    required this.id,
-    required this.name,
-    required this.memberCount,
-    required this.lastExpense,
-    required this.balance,
-  });
-}
-
-final _dummyGroups = [
-  const Group(
-    id: 'roommates',
-    name: 'Roommates',
-    memberCount: 3,
-    lastExpense: 'Electricity Bill - PKR 2000',
-    balance: -1500,
-  ),
-  const Group(
-    id: 'trip_to_murree',
-    name: 'Trip to Murree',
-    memberCount: 5,
-    lastExpense: 'Hotel Stay - PKR 8000',
-    balance: 3200,
-  ),
-  const Group(
-    id: 'office_lunch',
-    name: 'Office Lunch',
-    memberCount: 4,
-    lastExpense: 'Dinner - PKR 500',
-    balance: 0,
-  ),
-];
-
-class GroupsScreen extends StatefulWidget {
+class GroupsScreen extends ConsumerStatefulWidget {
   const GroupsScreen({super.key});
 
   @override
-  State<GroupsScreen> createState() => _GroupsScreenState();
+  ConsumerState<GroupsScreen> createState() => _GroupsScreenState();
 }
 
-class _GroupsScreenState extends State<GroupsScreen> {
+class _GroupsScreenState extends ConsumerState<GroupsScreen> {
   static const _accent = Color(0xFF00D4AA);
 
   final _groupNameController = TextEditingController();
-  List<Group> _groups = List.from(_dummyGroups);
-  List<Group> _filtered = List.from(_dummyGroups);
-  bool _searching = false;
   final _searchController = TextEditingController();
+  bool _searching = false;
+  String _searchQuery = '';
 
   @override
   void dispose() {
@@ -63,27 +26,29 @@ class _GroupsScreenState extends State<GroupsScreen> {
     super.dispose();
   }
 
-  void _onSearchChanged(String query) {
-    setState(() {
-      _filtered = _groups
-          .where((g) => g.name.toLowerCase().contains(query.toLowerCase()))
-          .toList();
-    });
+  List<Group> _filtered(List<Group> groups) {
+    if (_searchQuery.isEmpty) return groups;
+    return groups
+        .where((g) =>
+            g.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList();
   }
 
-  void _showCreateGroupDialog() {
+  Future<void> _showCreateGroupDialog() async {
     _groupNameController.clear();
     final cardColor = Theme.of(context).cardColor;
     final scaffoldBg = Theme.of(context).scaffoldBackgroundColor;
-    showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('New Group',
-            style: TextStyle(
-                color: Theme.of(ctx).colorScheme.onSurface,
-                fontWeight: FontWeight.bold)),
+        title: Text(
+          'New Group',
+          style: TextStyle(
+              color: Theme.of(ctx).colorScheme.onSurface,
+              fontWeight: FontWeight.bold),
+        ),
         content: TextField(
           controller: _groupNameController,
           style: TextStyle(color: Theme.of(ctx).colorScheme.onSurface),
@@ -113,21 +78,22 @@ class _GroupsScreenState extends State<GroupsScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            onPressed: () {
+            onPressed: () async {
               final name = _groupNameController.text.trim();
               if (name.isEmpty) return;
-              final newGroup = Group(
-                id: name.toLowerCase().replaceAll(' ', '_'),
-                name: name,
-                memberCount: 1,
-                lastExpense: 'No expenses yet',
-                balance: 0,
-              );
-              setState(() {
-                _groups = [newGroup, ..._groups];
-                _filtered = [newGroup, ..._filtered];
-              });
               Navigator.of(ctx).pop();
+              try {
+                await GroupsService().createGroup(name);
+                ref.invalidate(userGroupsProvider);
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Failed to create group: $e'),
+                    backgroundColor: Colors.red.shade700,
+                    behavior: SnackBarBehavior.floating,
+                  ));
+                }
+              }
             },
             child: const Text('Create',
                 style: TextStyle(
@@ -140,7 +106,9 @@ class _GroupsScreenState extends State<GroupsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final groupsAsync = ref.watch(userGroupsProvider);
     final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
@@ -154,7 +122,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                   hintText: 'Search groups...',
                   border: InputBorder.none,
                 ),
-                onChanged: _onSearchChanged,
+                onChanged: (q) => setState(() => _searchQuery = q),
               )
             : const Text('My Groups'),
         actions: [
@@ -165,7 +133,7 @@ class _GroupsScreenState extends State<GroupsScreen> {
                 _searching = !_searching;
                 if (!_searching) {
                   _searchController.clear();
-                  _filtered = List.from(_groups);
+                  _searchQuery = '';
                 }
               });
             },
@@ -173,7 +141,22 @@ class _GroupsScreenState extends State<GroupsScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _filtered.isEmpty ? _buildEmptyState() : _buildList(),
+      body: groupsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text('Error: $e',
+              style: const TextStyle(color: Colors.grey)),
+        ),
+        data: (groups) {
+          final filtered = _filtered(groups);
+          return RefreshIndicator(
+            onRefresh: () async => ref.invalidate(userGroupsProvider),
+            child: filtered.isEmpty
+                ? _buildEmptyState(onSurface)
+                : _buildList(filtered),
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showCreateGroupDialog,
         backgroundColor: _accent,
@@ -182,56 +165,63 @@ class _GroupsScreenState extends State<GroupsScreen> {
     );
   }
 
-  Widget _buildList() {
+  Widget _buildList(List<Group> groups) {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      itemCount: _filtered.length,
+      itemCount: groups.length,
       itemBuilder: (context, index) => _GroupCard(
-        group: _filtered[index],
+        group: groups[index],
         onTap: () => Navigator.of(context).pushNamed(
           '/group-detail',
           arguments: {
-            'groupName': _filtered[index].name,
-            'groupId': _filtered[index].id,
+            'groupName': groups[index].name,
+            'groupId': groups[index].id,
           },
         ),
       ),
     );
   }
 
-  Widget _buildEmptyState() {
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.group_outlined, color: Colors.grey, size: 64),
-          const SizedBox(height: 16),
-          Text(
-            'No groups yet.',
-            style: TextStyle(
-                color: onSurface, fontSize: 16, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Create your first group!',
-            style: TextStyle(color: Colors.grey, fontSize: 14),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _showCreateGroupDialog,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Create Group',
+  Widget _buildEmptyState(Color onSurface) {
+    return ListView(
+      children: [
+        SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.group_outlined, color: Colors.grey, size: 64),
+              const SizedBox(height: 16),
+              Text(
+                'No groups yet.',
                 style: TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.bold)),
+                    color: onSurface,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Create your first group!',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _showCreateGroupDialog,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _accent,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 28, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Create Group',
+                    style: TextStyle(
+                        color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -247,14 +237,15 @@ class _GroupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isOwed = group.balance > 0;
-    final isSettled = group.balance == 0;
-    final balanceColor = isSettled ? Colors.grey : (isOwed ? _accent : _red);
+    final isOwed = group.userBalance > 0;
+    final isSettled = group.userBalance == 0;
+    final balanceColor =
+        isSettled ? Colors.grey : (isOwed ? _accent : _red);
     final balanceText = isSettled
         ? 'Settled'
         : isOwed
-            ? '+PKR ${group.balance.toStringAsFixed(0)}'
-            : '-PKR ${group.balance.abs().toStringAsFixed(0)}';
+            ? '+PKR ${group.userBalance.toStringAsFixed(0)}'
+            : '-PKR ${group.userBalance.abs().toStringAsFixed(0)}';
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Card(
@@ -264,7 +255,8 @@ class _GroupCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               CircleAvatar(
@@ -295,12 +287,14 @@ class _GroupCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       '${group.memberCount} members',
-                      style: const TextStyle(color: Colors.grey, fontSize: 12),
+                      style:
+                          const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       'Last: ${group.lastExpense}',
-                      style: const TextStyle(color: Colors.grey, fontSize: 11),
+                      style:
+                          const TextStyle(color: Colors.grey, fontSize: 11),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
@@ -319,7 +313,8 @@ class _GroupCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+                  const Icon(Icons.chevron_right,
+                      color: Colors.grey, size: 20),
                 ],
               ),
             ],
