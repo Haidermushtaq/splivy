@@ -32,7 +32,7 @@ class AuthService {
     return user;
   }
 
-  Future<Session?> signIn({
+  Future<Session> signIn({
     required String email,
     required String password,
   }) async {
@@ -40,7 +40,9 @@ class AuthService {
       email: email,
       password: password,
     );
-    return response.session;
+    final session = response.session;
+    if (session == null) throw Exception('Login failed. Please try again.');
+    return session;
   }
 
   Future<void> signOut() async {

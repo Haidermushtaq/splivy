@@ -94,6 +94,9 @@ class _LoginScreenState extends State<LoginScreen> {
         msg.contains('invalid credentials')) {
       return 'Wrong email or password';
     }
+    if (msg.contains('email not confirmed')) {
+      return 'Please verify your email before logging in';
+    }
     if (msg.contains('network') ||
         msg.contains('socketexception') ||
         msg.contains('connection refused') ||
