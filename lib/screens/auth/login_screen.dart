@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,8 +12,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
 
   static const _accent = Color(0xFF00D4AA);
+  final _authService = AuthService();
 
   @override
   void dispose() {
@@ -21,19 +24,54 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (_emailController.text.trim().isEmpty ||
         _passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please fill in all fields'),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
+      _showError('Please fill in all fields');
       return;
     }
-    // TODO: replace with real auth — navigate on success
-    Navigator.of(context).pushReplacementNamed('/dashboard');
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/dashboard');
+      }
+    } catch (e) {
+      if (mounted) _showError(_parseError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  String _parseError(Object error) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('invalid login credentials') ||
+        msg.contains('invalid_credentials') ||
+        msg.contains('invalid credentials')) {
+      return 'Wrong email or password';
+    }
+    if (msg.contains('network') ||
+        msg.contains('socketexception') ||
+        msg.contains('connection refused') ||
+        msg.contains('failed host lookup')) {
+      return 'Please check your internet connection';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   InputDecoration _fieldDecoration({
@@ -141,7 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Align(
                 alignment: Alignment.center,
                 child: TextButton(
-                  onPressed: () {},
+                  onPressed: _isLoading ? null : () {},
                   child: const Text(
                     'Forgot Password?',
                     style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -155,21 +193,30 @@ class _LoginScreenState extends State<LoginScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _handleLogin,
+                  onPressed: _isLoading ? null : _handleLogin,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Login',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Text(
+                          'Login',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
 
@@ -177,13 +224,15 @@ class _LoginScreenState extends State<LoginScreen> {
 
               Center(
                 child: GestureDetector(
-                  onTap: () => Navigator.of(context).pushNamed('/signup'),
+                  onTap: _isLoading
+                      ? null
+                      : () => Navigator.of(context).pushNamed('/signup'),
                   child: RichText(
-                    text: TextSpan(
-                      style: const TextStyle(color: Colors.grey, fontSize: 14),
+                    text: const TextSpan(
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
                       children: [
-                        const TextSpan(text: "Don't have an account? "),
-                        const TextSpan(
+                        TextSpan(text: "Don't have an account? "),
+                        TextSpan(
                           text: 'Sign Up',
                           style: TextStyle(
                             color: _accent,

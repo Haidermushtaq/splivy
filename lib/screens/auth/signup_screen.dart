@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/auth_service.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -16,8 +17,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
   static const _accent = Color(0xFF00D4AA);
+  final _authService = AuthService();
 
   @override
   void dispose() {
@@ -29,7 +32,7 @@ class _SignupScreenState extends State<SignupScreen> {
     super.dispose();
   }
 
-  void _handleSignup() {
+  Future<void> _handleSignup() async {
     final fullName = _fullNameController.text.trim();
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
@@ -41,28 +44,72 @@ class _SignupScreenState extends State<SignupScreen> {
         email.isEmpty ||
         password.isEmpty ||
         confirmPassword.isEmpty) {
-      _showSnackBar('Please fill in all fields');
+      _showError('Please fill in all fields');
       return;
     }
 
     if (username.contains(' ')) {
-      _showSnackBar('Username must not contain spaces');
+      _showError('Username must not contain spaces');
       return;
     }
 
     if (password != confirmPassword) {
-      _showSnackBar('Passwords do not match');
+      _showError('Passwords do not match');
       return;
     }
 
-    // TODO: auth logic
+    setState(() => _isLoading = true);
+    try {
+      await _authService.signUp(
+        fullName: fullName,
+        username: username,
+        email: email,
+        password: password,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Account created! Please verify your email'),
+            backgroundColor: _accent,
+            behavior: SnackBarBehavior.floating,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+        );
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+    } catch (e) {
+      if (mounted) _showError(_parseError(e));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _showSnackBar(String message) {
+  String _parseError(Object error) {
+    final msg = error.toString().toLowerCase();
+    if (msg.contains('username already taken')) {
+      return 'This username is not available';
+    }
+    if (msg.contains('user already registered') ||
+        msg.contains('already registered')) {
+      return 'An account with this email already exists';
+    }
+    if (msg.contains('network') ||
+        msg.contains('socketexception') ||
+        msg.contains('connection refused') ||
+        msg.contains('failed host lookup')) {
+      return 'Please check your internet connection';
+    }
+    return 'Something went wrong. Please try again.';
+  }
+
+  void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -220,21 +267,30 @@ class _SignupScreenState extends State<SignupScreen> {
                 width: double.infinity,
                 height: 52,
                 child: ElevatedButton(
-                  onPressed: _handleSignup,
+                  onPressed: _isLoading ? null : _handleSignup,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _accent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Create Account',
-                    style: TextStyle(
-                      color: Colors.black,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.black,
+                          ),
+                        )
+                      : const Text(
+                          'Create Account',
+                          style: TextStyle(
+                            color: Colors.black,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ),
 
@@ -242,8 +298,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
               Center(
                 child: GestureDetector(
-                  onTap: () =>
-                      Navigator.of(context).pushReplacementNamed('/login'),
+                  onTap: _isLoading
+                      ? null
+                      : () => Navigator.of(context)
+                          .pushReplacementNamed('/login'),
                   child: RichText(
                     text: const TextSpan(
                       style: TextStyle(color: Colors.grey, fontSize: 14),

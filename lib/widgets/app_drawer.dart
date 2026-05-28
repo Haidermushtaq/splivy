@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class AppDrawer extends StatefulWidget {
   final String currentRoute;
@@ -347,9 +348,9 @@ class _AppDrawerState extends State<AppDrawer> {
               backgroundColor: Colors.red,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(ctx).pop();
-              Navigator.of(context).pushReplacementNamed('/login');
+              await AuthService().signOut();
             },
             child: const Text(
               'Logout',

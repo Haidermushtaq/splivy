@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'theme/app_theme.dart';
+import 'providers/auth_provider.dart';
 import 'providers/theme_provider.dart';
 import 'utils/page_transitions.dart';
 import 'screens/splash_screen.dart';
@@ -17,6 +18,8 @@ import 'screens/expenses/add_expense_screen.dart';
 import 'screens/friends/friends_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/settle/settle_up_screen.dart';
+
+final _navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,7 +48,18 @@ class FairShareApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeProvider);
+
+    ref.listen<AsyncValue<AuthState>>(authStateProvider, (_, next) {
+      next.whenData((state) {
+        if (state.event == AuthChangeEvent.signedOut) {
+          _navigatorKey.currentState
+              ?.pushNamedAndRemoveUntil('/login', (r) => false);
+        }
+      });
+    });
+
     return MaterialApp(
+      navigatorKey: _navigatorKey,
       title: 'FairShare',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
