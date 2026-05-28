@@ -6,6 +6,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
+import 'providers/realtime_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
 import 'utils/page_transitions.dart';
@@ -60,6 +61,9 @@ class FairShareApp extends ConsumerWidget {
         }
       });
     });
+
+    // Keep friend-request notification listener alive for the app lifetime.
+    ref.watch(friendRequestNotificationProvider);
 
     return MaterialApp(
       navigatorKey: _navigatorKey,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/friend_model.dart';
@@ -65,6 +66,22 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Failed to accept: $e'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
+    }
+  }
+
+  Future<void> _rejectRequest(String requestId) async {
+    try {
+      await FriendsService().rejectFriendRequest(requestId);
+      ref.invalidate(pendingRequestsProvider);
+      ref.invalidate(friendRequestsStreamProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to decline: $e'),
           backgroundColor: Colors.red.shade700,
           behavior: SnackBarBehavior.floating,
         ));
@@ -156,10 +173,12 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                           onTap: () =>
                               Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => FriendDetailScreen(
-                                  name: friend.fullName),
+                              builder: (_) =>
+                                  FriendDetailScreen(friend: friend),
                             ),
-                          ),
+                          ).then((_) {
+                            ref.invalidate(friendsListProvider);
+                          }),
                         );
                       },
                       childCount: filtered.length,
@@ -274,7 +293,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: _accent,
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 6),
+                    horizontal: 12, vertical: 6),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8)),
                 minimumSize: Size.zero,
@@ -285,6 +304,26 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                 'Accept',
                 style: TextStyle(
                     color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
+              ),
+            ),
+            const SizedBox(width: 6),
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.redAccent),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 6),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onPressed: () => _rejectRequest(req.id),
+              child: const Text(
+                'Decline',
+                style: TextStyle(
+                    color: Colors.redAccent,
                     fontWeight: FontWeight.bold,
                     fontSize: 12),
               ),
@@ -447,43 +486,77 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
   static const _accent = Color(0xFF00D4AA);
 
   final _controller = TextEditingController();
-  bool _isLoading = false;
-  String? _error;
-  String? _success;
+  Timer? _debounce;
+  bool _isSearching = false;
+  bool _hasSearched = false;
+  Profile? _foundUser;
 
   @override
   void dispose() {
     _controller.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  Future<void> _sendRequest() async {
-    final input = _controller.text.trim();
-    if (input.isEmpty) return;
+  void _onChanged(String value) {
+    _debounce?.cancel();
+    final q = value.trim();
+    if (q.length < 2) {
+      setState(() {
+        _hasSearched = false;
+        _foundUser = null;
+        _isSearching = false;
+      });
+      return;
+    }
+    setState(() => _isSearching = true);
+    _debounce =
+        Timer(const Duration(milliseconds: 500), () => _search(q));
+  }
 
-    setState(() {
-      _isLoading = true;
-      _error = null;
-      _success = null;
-    });
-
+  Future<void> _search(String query) async {
     try {
-      final username = input.startsWith('@') ? input.substring(1) : input;
-      await FriendsService().sendFriendRequest(username);
+      final user = await FriendsService().searchUser(query);
+      if (mounted) {
+        setState(() {
+          _foundUser = user;
+          _isSearching = false;
+          _hasSearched = true;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _foundUser = null;
+          _isSearching = false;
+          _hasSearched = true;
+        });
+      }
+    }
+  }
+
+  Future<void> _sendRequest(Profile user) async {
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await FriendsService().sendFriendRequest(user.id);
       widget.onSent();
-      if (mounted) {
-        setState(() {
-          _success = 'Friend request sent!';
-          _isLoading = false;
-        });
-      }
+      if (mounted) Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(
+        content: Text('Friend request sent to @${user.username}!'),
+        backgroundColor: _accent,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _error = e.toString().replaceFirst('Exception: ', '');
-          _isLoading = false;
-        });
-      }
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      messenger.showSnackBar(SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ));
     }
   }
 
@@ -520,9 +593,9 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                 fontWeight: FontWeight.bold,
                 fontSize: 20),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           const Text(
-            'Search by username',
+            'Search by @username or email address',
             style: TextStyle(color: Colors.grey, fontSize: 13),
           ),
           const SizedBox(height: 20),
@@ -530,10 +603,20 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
             controller: _controller,
             autofocus: true,
             style: TextStyle(color: onSurface),
-            onSubmitted: (_) => _sendRequest(),
+            onChanged: _onChanged,
             decoration: InputDecoration(
-              hintText: 'Enter @username',
-              prefixIcon: const Icon(Icons.search, size: 20),
+              hintText: '@username or email',
+              prefixIcon: _isSearching
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: _accent),
+                      ),
+                    )
+                  : const Icon(Icons.search, size: 20),
               filled: true,
               fillColor: scaffoldBg,
               border: OutlineInputBorder(
@@ -553,56 +636,104 @@ class _AddFriendSheetState extends State<_AddFriendSheet> {
                   horizontal: 16, vertical: 14),
             ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: 12),
-            Text(_error!,
-                style: const TextStyle(
-                    color: Color(0xFFFF6B6B), fontSize: 13)),
-          ],
-          if (_success != null) ...[
-            const SizedBox(height: 12),
-            Text(_success!,
-                style: const TextStyle(
-                    color: Color(0xFF00D4AA), fontSize: 13)),
-          ],
-          const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              onPressed: _isLoading ? null : _sendRequest,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: _accent,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+          const SizedBox(height: 16),
+          if (_hasSearched && _foundUser != null)
+            _UserResultCard(
+                user: _foundUser!, onAdd: () => _sendRequest(_foundUser!))
+          else if (_hasSearched && _foundUser == null)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.search_off, color: Colors.grey, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'No user found with that email or @username',
+                    style: TextStyle(color: Colors.grey, fontSize: 13),
+                  ),
+                ],
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                          color: Colors.black, strokeWidth: 2.5),
-                    )
-                  : const Text(
-                      'Send Request',
-                      style: TextStyle(
-                          color: Colors.black,
-                          fontWeight: FontWeight.bold),
-                    ),
             ),
-          ),
           const SizedBox(height: 8),
           SizedBox(
             width: double.infinity,
             child: TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancel',
-                  style:
-                      TextStyle(color: Colors.grey, fontSize: 15)),
+                  style: TextStyle(color: Colors.grey, fontSize: 15)),
             ),
           ),
           const SizedBox(height: 4),
         ],
+      ),
+    );
+  }
+}
+
+class _UserResultCard extends StatelessWidget {
+  final Profile user;
+  final VoidCallback onAdd;
+
+  static const _accent = Color(0xFF00D4AA);
+
+  const _UserResultCard({required this.user, required this.onAdd});
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: _accent,
+              child: Text(
+                user.fullName[0].toUpperCase(),
+                style: const TextStyle(
+                    color: Colors.black, fontWeight: FontWeight.bold),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(user.fullName,
+                      style: TextStyle(
+                          color: onSurface,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14)),
+                  Text('@${user.username}',
+                      style: const TextStyle(
+                          color: Colors.grey, fontSize: 12)),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: onAdd,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accent,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Add Friend',
+                style: TextStyle(
+                    color: Colors.black,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

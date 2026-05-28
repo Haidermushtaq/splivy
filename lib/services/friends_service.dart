@@ -6,16 +6,19 @@ class FriendsService {
 
   String get _userId => _client.auth.currentUser!.id;
 
-  Future<void> sendFriendRequest(String friendUsername) async {
-    final profile = await _client
+  Future<Profile?> searchUser(String query) async {
+    final q = query.startsWith('@') ? query.substring(1) : query;
+    final result = await _client
         .from('profiles')
-        .select('id')
-        .eq('username', friendUsername)
+        .select('id, full_name, username, email')
+        .or('username.eq.$q,email.eq.$q')
+        .neq('id', _userId)
         .maybeSingle();
+    if (result == null) return null;
+    return Profile.fromJson(result);
+  }
 
-    if (profile == null) throw Exception('User not found');
-
-    final friendId = profile['id'] as String;
+  Future<void> sendFriendRequest(String friendId) async {
     if (friendId == _userId) throw Exception('You cannot add yourself');
 
     final existing = await _client
@@ -27,7 +30,7 @@ class FriendsService {
     if (existing != null) {
       final status = existing['status'] as String;
       if (status == 'accepted') throw Exception('Already friends');
-      if (status == 'pending') throw Exception('Request already sent');
+      if (status == 'pending') throw Exception('Friend request already sent');
     }
 
     await _client.from('friends').insert({
@@ -41,7 +44,16 @@ class FriendsService {
     await _client
         .from('friends')
         .update({'status': 'accepted'})
-        .eq('id', requestId);
+        .eq('id', requestId)
+        .eq('friend_id', _userId);
+  }
+
+  Future<void> rejectFriendRequest(String friendshipId) async {
+    await _client.from('friends').delete().eq('id', friendshipId);
+  }
+
+  Future<void> removeFriend(String friendshipId) async {
+    await _client.from('friends').delete().eq('id', friendshipId);
   }
 
   Future<List<Friend>> getFriends() async {
@@ -110,6 +122,16 @@ class FriendsService {
     }
 
     return result;
+  }
+
+  Future<List<String>> getSharedGroupNames(String friendId) async {
+    final ids = await _getSharedGroupIds(friendId);
+    if (ids.isEmpty) return [];
+    final groups = await _client
+        .from('groups')
+        .select('name')
+        .inFilter('id', ids);
+    return (groups as List).map((g) => g['name'] as String).toList();
   }
 
   Future<double> getBalanceWithFriend(String friendId) =>
