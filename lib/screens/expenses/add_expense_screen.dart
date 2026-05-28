@@ -2,9 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../models/expense_model.dart';
 import '../../models/group_model.dart';
 import '../../providers/groups_provider.dart';
 import '../../services/expenses_service.dart';
+
+class _GuestEntry {
+  final TextEditingController nameCtrl = TextEditingController();
+  final TextEditingController phoneCtrl = TextEditingController();
+  final TextEditingController amountCtrl = TextEditingController();
+
+  void dispose() {
+    nameCtrl.dispose();
+    phoneCtrl.dispose();
+    amountCtrl.dispose();
+  }
+}
 
 class _Category {
   final String name;
@@ -46,7 +59,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   String _selectedCategory = 'Food';
   int _selectedPayerIndex = 0;
   List<bool> _splitSelected = [];
-  bool _customExpenseNote = false;
+  bool _customExpenseMode = false;
+  final List<_GuestEntry> _guests = [];
   bool _isLoading = false;
 
   String get _currentUserId =>
@@ -57,6 +71,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _titleController.dispose();
     _amountController.dispose();
     _noteController.dispose();
+    for (final g in _guests) {
+      g.dispose();
+    }
     super.dispose();
   }
 
@@ -70,11 +87,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
   }
 
+  double get _guestTotal {
+    double total = 0;
+    for (final g in _guests) {
+      total += double.tryParse(g.amountCtrl.text) ?? 0;
+    }
+    return total;
+  }
+
   double _splitAmount(int memberCount) {
     final amount = double.tryParse(_amountController.text) ?? 0;
     final count = _splitSelected.where((s) => s).length;
-    if (count == 0 || amount == 0) return 0;
-    return amount / count;
+    final remaining = amount - (_customExpenseMode ? _guestTotal : 0);
+    if (count == 0 || remaining <= 0) return 0;
+    return remaining / count;
   }
 
   Future<void> _onSubmit(List<GroupMember> members) async {
@@ -96,7 +122,37 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       return;
     }
 
-    final perPerson = amount / selectedCount;
+    List<GuestSplitInput> guestInputs = [];
+    double guestTotal = 0;
+
+    if (_customExpenseMode && _guests.isNotEmpty) {
+      for (final g in _guests) {
+        final name = g.nameCtrl.text.trim();
+        final phone = g.phoneCtrl.text.trim();
+        final amt = double.tryParse(g.amountCtrl.text) ?? 0;
+        if (name.isEmpty || phone.isEmpty || amt <= 0) {
+          _showSnackBar('Please fill in all guest fields');
+          return;
+        }
+        if (!RegExp(r'^03\d{9}$').hasMatch(phone)) {
+          _showSnackBar('Guest phone must be in format 03XXXXXXXXX');
+          return;
+        }
+        guestTotal += amt;
+        guestInputs.add(GuestSplitInput(
+          guestName: name,
+          guestPhone: phone,
+          amount: amt,
+        ));
+      }
+      if (guestTotal >= amount) {
+        _showSnackBar('Guest amounts must be less than total expense amount');
+        return;
+      }
+    }
+
+    final remaining = amount - guestTotal;
+    final perPerson = remaining / selectedCount;
     final splits = <String, double>{};
     for (int i = 0; i < members.length; i++) {
       if (_splitSelected[i]) {
@@ -116,6 +172,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         note: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),
+        guestSplits: guestInputs,
       );
       if (mounted) {
         _showSnackBar('Expense added!', isSuccess: true);
@@ -187,7 +244,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             ),
             onPressed: () {
               Navigator.of(ctx).pop();
-              setState(() => _customExpenseNote = true);
+              setState(() {
+                _customExpenseMode = true;
+                if (_guests.isEmpty) _guests.add(_GuestEntry());
+              });
             },
             child: const Text(
               'Add as one-time custom expense',
@@ -616,65 +676,162 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Adding someone outside this group?',
-          style: TextStyle(color: Colors.grey, fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        InkWell(
-          onTap: _showGuestDialog,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
-            decoration: BoxDecoration(
-              color: fillColor,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white12),
-            ),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: cardColor,
-                  child: const Icon(Icons.person_add_outlined,
-                      color: _accent, size: 16),
-                ),
-                const SizedBox(width: 12),
-                Text('Add a guest',
-                    style:
-                        TextStyle(color: onSurface, fontSize: 14)),
-                const Spacer(),
-                const Icon(Icons.chevron_right,
-                    color: Colors.grey, size: 20),
-              ],
+        if (!_customExpenseMode) ...[
+          const Text(
+            'Adding someone outside this group?',
+            style: TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+          const SizedBox(height: 10),
+          InkWell(
+            onTap: _showGuestDialog,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: fillColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 14,
+                    backgroundColor: cardColor,
+                    child: const Icon(Icons.person_add_outlined,
+                        color: _accent, size: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('Add a guest',
+                      style:
+                          TextStyle(color: onSurface, fontSize: 14)),
+                  const Spacer(),
+                  const Icon(Icons.chevron_right,
+                      color: Colors.grey, size: 20),
+                ],
+              ),
             ),
           ),
-        ),
-        if (_customExpenseNote) ...[
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.amber.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: Colors.amber.withValues(alpha: 0.4)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline,
-                    color: Colors.amber, size: 16),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'This can be archived once settled.',
-                    style: TextStyle(
+        ] else ...[
+          _sectionLabel('Guest Splits'),
+          const SizedBox(height: 4),
+          const Text(
+            'Enter name, phone (03XXXXXXXXX) and amount owed',
+            style: TextStyle(color: Colors.grey, fontSize: 11),
+          ),
+          const SizedBox(height: 12),
+          ...List.generate(_guests.length, (i) {
+            final g = _guests[i];
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Guest ${i + 1}',
+                        style: const TextStyle(
+                            color: _accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold),
+                      ),
+                      const Spacer(),
+                      if (_guests.length > 1)
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              g.dispose();
+                              _guests.removeAt(i);
+                            });
+                          },
+                          child: const Icon(Icons.close,
+                              color: Colors.grey, size: 18),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: g.nameCtrl,
+                    style: TextStyle(color: onSurface, fontSize: 13),
+                    decoration: _fieldDecoration(
+                        hint: 'Guest name',
+                        prefixIcon: Icons.person_outline),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: g.phoneCtrl,
+                    keyboardType: TextInputType.phone,
+                    style: TextStyle(color: onSurface, fontSize: 13),
+                    decoration: _fieldDecoration(
+                        hint: '03XXXXXXXXX',
+                        prefixIcon: Icons.phone_outlined),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: g.amountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(
+                          RegExp(r'^\d+\.?\d{0,2}')),
+                    ],
+                    onChanged: (_) => setState(() {}),
+                    style: TextStyle(color: onSurface, fontSize: 13),
+                    decoration: _fieldDecoration(
+                        hint: 'Amount they owe (PKR)',
+                        prefixIcon: Icons.currency_rupee),
+                  ),
+                ],
+              ),
+            );
+          }),
+          if (_guestTotal > 0) ...[
+            const SizedBox(height: 4),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+                border:
+                    Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.people_alt_outlined,
+                      color: Colors.amber, size: 14),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Guest total: PKR ${_guestTotal.toStringAsFixed(0)}',
+                    style: const TextStyle(
                         color: Colors.amber, fontSize: 12),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
+          ],
+          const SizedBox(height: 10),
+          OutlinedButton.icon(
+            onPressed: () {
+              setState(() => _guests.add(_GuestEntry()));
+            },
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: _accent),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              padding:
+                  const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+            ),
+            icon: const Icon(Icons.add, color: _accent, size: 16),
+            label: const Text('Add Another Guest',
+                style: TextStyle(color: _accent, fontSize: 13)),
           ),
         ],
       ],

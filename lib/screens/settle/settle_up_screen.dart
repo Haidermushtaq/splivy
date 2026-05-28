@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../models/expense_model.dart';
 import '../../services/expenses_service.dart';
 import '../../services/notification_service.dart';
@@ -9,6 +10,11 @@ import '../../widgets/lottie_widget.dart';
 final _settleUpProvider =
     FutureProvider<List<DebtItem>>((ref) async {
   return ExpensesService().getSettleUpData();
+});
+
+final _guestSplitsProvider =
+    FutureProvider<List<CustomExpenseDetail>>((ref) async {
+  return ExpensesService().getCustomExpenses();
 });
 
 class SettleUpScreen extends ConsumerStatefulWidget {
@@ -150,9 +156,48 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     );
   }
 
+  Future<void> _sendWhatsApp(
+      BuildContext context, GuestSplit guest, String expenseTitle) async {
+    final rawPhone = guest.guestPhone;
+    final waPhone = '92${rawPhone.substring(1)}';
+    final msg = Uri.encodeComponent(
+      'Hi ${guest.guestName}, you owe PKR ${guest.amount.toStringAsFixed(0)} for "$expenseTitle". Please settle up! – FairShare',
+    );
+    final url = Uri.parse('https://wa.me/$waPhone?text=$msg');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Could not open WhatsApp'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _markGuestPaid(GuestSplit guest) async {
+    try {
+      await ExpensesService().settleGuestSplit(guest.id);
+      ref.invalidate(_guestSplitsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final settleAsync = ref.watch(_settleUpProvider);
+    final guestAsync = ref.watch(_guestSplitsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -161,13 +206,13 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
       ),
       body: settleAsync.when(
         loading: () => const Center(
-        child: LottieWidget(
-          assetPath: 'assets/animations/loading.json',
-          width: 100,
-          height: 100,
-          repeat: true,
+          child: LottieWidget(
+            assetPath: 'assets/animations/loading.json',
+            width: 100,
+            height: 100,
+            repeat: true,
+          ),
         ),
-      ),
         error: (e, _) => Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -198,18 +243,27 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                   .toList()
               : allDebts;
 
-          final youOwe =
-              debts.where((d) => d.youOwe).toList();
-          final owesYou =
-              debts.where((d) => !d.youOwe).toList();
-          final allSettled = youOwe.isEmpty && owesYou.isEmpty;
+          final youOwe = debts.where((d) => d.youOwe).toList();
+          final owesYou = debts.where((d) => !d.youOwe).toList();
+
+          final pendingGuests = guestAsync.value
+                  ?.expand((detail) => detail.guests
+                      .where((g) => !g.isSettled)
+                      .map((g) => (detail: detail, guest: g)))
+                  .toList() ??
+              [];
+
+          final allSettled =
+              youOwe.isEmpty && owesYou.isEmpty && pendingGuests.isEmpty;
 
           return RefreshIndicator(
-            onRefresh: () async =>
-                ref.invalidate(_settleUpProvider),
+            onRefresh: () async {
+              ref.invalidate(_settleUpProvider);
+              ref.invalidate(_guestSplitsProvider);
+            },
             child: allSettled
                 ? _buildAllSettled()
-                : _buildContent(youOwe, owesYou),
+                : _buildContent(youOwe, owesYou, pendingGuests),
           );
         },
       ),
@@ -217,7 +271,10 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
   }
 
   Widget _buildContent(
-      List<DebtItem> youOwe, List<DebtItem> owesYou) {
+    List<DebtItem> youOwe,
+    List<DebtItem> owesYou,
+    List<({CustomExpenseDetail detail, GuestSplit guest})> pendingGuests,
+  ) {
     final totalToSettle =
         youOwe.fold(0.0, (sum, d) => sum + d.amount);
     return SingleChildScrollView(
@@ -240,6 +297,14 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
             const SizedBox(height: 10),
             ...owesYou.map(
                 (d) => _buildDebtCard(d, youOwe: false)),
+          ],
+          if (pendingGuests.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _sectionHeader('One-time Expenses', Colors.amber),
+            const SizedBox(height: 10),
+            ...pendingGuests.map(
+              (entry) => _buildGuestDebtCard(entry.guest, entry.detail.expense.title),
+            ),
           ],
           const SizedBox(height: 24),
         ],
@@ -373,11 +438,13 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
   }
 
   Widget _actionButton(
-      {required String label, required VoidCallback onTap}) {
+      {required String label,
+      required VoidCallback onTap,
+      Color color = _accent}) {
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        side: const BorderSide(color: _accent),
+        side: BorderSide(color: color),
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(8)),
         padding:
@@ -387,7 +454,87 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
       ),
       child: Text(
         label,
-        style: const TextStyle(color: _accent, fontSize: 11),
+        style: TextStyle(color: color, fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _buildGuestDebtCard(GuestSplit guest, String expenseTitle) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+            horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.amber.withValues(alpha: 0.2),
+              child: Text(
+                guest.guestName[0].toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    guest.guestName,
+                    style: TextStyle(
+                      color: onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    expenseTitle,
+                    style: const TextStyle(
+                        color: Colors.grey, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'PKR ${guest.amount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _actionButton(
+                      label: 'WhatsApp',
+                      onTap: () => _sendWhatsApp(context, guest, expenseTitle),
+                      color: const Color(0xFF25D366),
+                    ),
+                    const SizedBox(width: 6),
+                    _actionButton(
+                      label: 'Mark Paid',
+                      onTap: () => _markGuestPaid(guest),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
