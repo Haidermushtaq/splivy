@@ -52,6 +52,7 @@ class AddExpenseScreen extends ConsumerStatefulWidget {
 class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   static const _accent = Color(0xFF00D4AA);
 
+  final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
@@ -104,19 +105,18 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   }
 
   Future<void> _onSubmit(List<GroupMember> members) async {
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) {
+      _showSnackBar('Please fix the errors above');
+      return;
+    }
+
     final title = _titleController.text.trim();
     final amountText = _amountController.text.trim();
     final amount = double.tryParse(amountText) ?? 0;
     final selectedCount = _splitSelected.where((s) => s).length;
 
-    if (title.isEmpty) {
-      _showSnackBar('Please enter an expense title');
-      return;
-    }
-    if (amountText.isEmpty || amount <= 0) {
-      _showSnackBar('Please enter a valid amount');
-      return;
-    }
     if (selectedCount == 0) {
       _showSnackBar('Please select at least one member for the split');
       return;
@@ -278,6 +278,19 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: _accent, width: 1.5),
       ),
+      errorStyle: const TextStyle(
+        color: Color(0xFFFF6B6B),
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFFF6B6B), width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: Color(0xFFFF6B6B), width: 2),
+      ),
       contentPadding:
           const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
@@ -329,7 +342,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
           return GestureDetector(
             onTap: () => FocusScope.of(context).unfocus(),
-            child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+              child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 12),
               child: Column(
@@ -350,6 +366,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 ],
               ),
             ),
+            ),
           );
         },
       ),
@@ -367,16 +384,25 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       children: [
         _sectionLabel('Expense Details'),
         const SizedBox(height: 12),
-        TextField(
+        TextFormField(
           controller: _titleController,
           style: TextStyle(color: onSurface),
           decoration: _fieldDecoration(
             hint: 'What was this expense for?',
             prefixIcon: Icons.edit_outlined,
           ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Expense title is required';
+            }
+            if (value.trim().length < 2) {
+              return 'Title must be at least 2 characters';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 12),
-        TextField(
+        TextFormField(
           controller: _amountController,
           keyboardType:
               const TextInputType.numberWithOptions(decimal: true),
@@ -390,6 +416,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             hint: 'Amount in PKR',
             prefixIcon: Icons.currency_rupee,
           ),
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Amount is required';
+            }
+            final amount = double.tryParse(value);
+            if (amount == null || amount <= 0) {
+              return 'Enter a valid amount greater than 0';
+            }
+            return null;
+          },
         ),
         const SizedBox(height: 12),
         Container(

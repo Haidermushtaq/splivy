@@ -12,12 +12,14 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _isLoading = false;
 
   static const _accent = Color(0xFF00D4AA);
+  static const _errorColor = Color(0xFFFF6B6B);
   final _authService = AuthService();
 
   @override
@@ -28,9 +30,24 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLogin() async {
-    if (_emailController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
-      _showError('Please fill in all fields');
+    FocusScope.of(context).unfocus();
+
+    if (!_formKey.currentState!.validate()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Please fix the errors above'),
+            ],
+          ),
+          backgroundColor: _errorColor,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
       return;
     }
 
@@ -69,8 +86,8 @@ class _LoginScreenState extends State<LoginScreen> {
       barrierDismissible: false,
       builder: (ctx) => Dialog(
         backgroundColor: Theme.of(ctx).cardColor,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
@@ -127,7 +144,8 @@ class _LoginScreenState extends State<LoginScreen> {
         content: Text(message),
         backgroundColor: Colors.redAccent,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -151,6 +169,19 @@ class _LoginScreenState extends State<LoginScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: _accent, width: 1.5),
       ),
+      errorStyle: const TextStyle(
+        color: _errorColor,
+        fontSize: 12,
+        fontWeight: FontWeight.w500,
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _errorColor, width: 1.5),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _errorColor, width: 2),
+      ),
     );
   }
 
@@ -161,150 +192,173 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
+          child: Form(
+            key: _formKey,
+            autovalidateMode: AutovalidateMode.onUserInteraction,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 40),
 
-              Row(
-                children: [
-                  const Icon(Icons.account_balance_wallet_rounded,
-                      color: _accent, size: 28),
-                  const SizedBox(width: 8),
-                  Text(
-                    'FairShare',
-                    style: TextStyle(
-                      color: onSurface,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                Row(
+                  children: [
+                    const Icon(Icons.account_balance_wallet_rounded,
+                        color: _accent, size: 28),
+                    const SizedBox(width: 8),
+                    Text(
+                      'FairShare',
+                      style: TextStyle(
+                        color: onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 48),
+
+                Text(
+                  'Welcome Back',
+                  style: TextStyle(
+                    color: onSurface,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Sign in to continue',
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
+                ),
+
+                const SizedBox(height: 40),
+
+                TextFormField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  style: TextStyle(color: onSurface),
+                  decoration: _fieldDecoration(
+                    hint: 'Email',
+                    prefixIcon: Icons.email_outlined,
+                  ),
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Email is required';
+                    }
+                    if (!RegExp(r'^[\w\-\.]+@([\w\-]+\.)+[\w\-]{2,4}$')
+                        .hasMatch(value.trim())) {
+                      return 'Enter a valid email address';
+                    }
+                    return null;
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                TextFormField(
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  style: TextStyle(color: onSurface),
+                  decoration: _fieldDecoration(
+                    hint: 'Password',
+                    prefixIcon: Icons.lock_outline,
+                    suffixIcon: IconButton(
+                      icon: Icon(
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.grey,
+                      ),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 48),
-
-              Text(
-                'Welcome Back',
-                style: TextStyle(
-                  color: onSurface,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return 'Password is required';
+                    }
+                    if (value.length < 6) {
+                      return 'Password must be at least 6 characters';
+                    }
+                    return null;
+                  },
                 ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'Sign in to continue',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
 
-              const SizedBox(height: 40),
+                const SizedBox(height: 12),
 
-              TextField(
-                controller: _emailController,
-                keyboardType: TextInputType.emailAddress,
-                style: TextStyle(color: onSurface),
-                decoration: _fieldDecoration(
-                  hint: 'Email',
-                  prefixIcon: Icons.email_outlined,
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              TextField(
-                controller: _passwordController,
-                obscureText: _obscurePassword,
-                style: TextStyle(color: onSurface),
-                decoration: _fieldDecoration(
-                  hint: 'Password',
-                  prefixIcon: Icons.lock_outline,
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () =>
-                        setState(() => _obscurePassword = !_obscurePassword),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 12),
-
-              Align(
-                alignment: Alignment.center,
-                child: TextButton(
-                  onPressed: _isLoading ? null : () {},
-                  child: const Text(
-                    'Forgot Password?',
-                    style: TextStyle(color: Colors.grey, fontSize: 14),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleLogin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _accent,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.black,
-                          ),
-                        )
-                      : const Text(
-                          'Login',
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              Center(
-                child: GestureDetector(
-                  onTap: _isLoading
-                      ? null
-                      : () => Navigator.of(context).pushNamed('/signup'),
-                  child: RichText(
-                    text: const TextSpan(
+                Align(
+                  alignment: Alignment.center,
+                  child: TextButton(
+                    onPressed: _isLoading ? null : () {},
+                    child: const Text(
+                      'Forgot Password?',
                       style: TextStyle(color: Colors.grey, fontSize: 14),
-                      children: [
-                        TextSpan(text: "Don't have an account? "),
-                        TextSpan(
-                          text: 'Sign Up',
-                          style: TextStyle(
-                            color: _accent,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
                     ),
                   ),
                 ),
-              ),
 
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 8),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _handleLogin,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _accent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.black,
+                            ),
+                          )
+                        : const Text(
+                            'Login',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+
+                const SizedBox(height: 32),
+
+                Center(
+                  child: GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () => Navigator.of(context).pushNamed('/signup'),
+                    child: RichText(
+                      text: const TextSpan(
+                        style: TextStyle(color: Colors.grey, fontSize: 14),
+                        children: [
+                          TextSpan(text: "Don't have an account? "),
+                          TextSpan(
+                            text: 'Sign Up',
+                            style: TextStyle(
+                              color: _accent,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
