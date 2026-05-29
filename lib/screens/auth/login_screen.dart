@@ -80,6 +80,47 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  Future<void> _handleForgotPassword() async {
+    FocusScope.of(context).unfocus();
+    final email = _emailController.text.trim();
+    final messenger = ScaffoldMessenger.of(context);
+
+    if (email.isEmpty || !email.contains('@')) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Enter your email above first, then tap Forgot Password'),
+          backgroundColor: _errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await _authService.resetPassword(email);
+      messenger.showSnackBar(
+        SnackBar(
+          content: const Text('Password reset link sent. Check your email.'),
+          backgroundColor: _accent,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(_parseError(e)),
+          backgroundColor: _errorColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _showSuccessAndNavigate() async {
     showDialog(
       context: context,
@@ -290,7 +331,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Align(
                   alignment: Alignment.center,
                   child: TextButton(
-                    onPressed: _isLoading ? null : () {},
+                    onPressed: _isLoading ? null : _handleForgotPassword,
                     child: const Text(
                       'Forgot Password?',
                       style: TextStyle(color: Colors.grey, fontSize: 14),

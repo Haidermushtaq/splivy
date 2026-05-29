@@ -140,10 +140,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         Padding(
           padding: const EdgeInsets.only(right: 16, left: 4),
-          child: CircleAvatar(
-            radius: 18,
-            backgroundColor: Theme.of(context).cardColor,
-            child: const Icon(Icons.person, color: Colors.grey, size: 20),
+          child: GestureDetector(
+            onTap: () => setState(() => _currentIndex = 3),
+            child: CircleAvatar(
+              radius: 18,
+              backgroundColor: Theme.of(context).cardColor,
+              child: const Icon(Icons.person, color: Colors.grey, size: 20),
+            ),
           ),
         ),
       ],

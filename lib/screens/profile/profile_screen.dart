@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/theme_provider.dart';
@@ -54,14 +55,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildAvatarSection(ColorScheme cs) {
+    final profileAsync = ref.watch(myProfileProvider);
     final cache = PreferencesService().getUserCache();
-    final fullName = cache['fullName']?.isNotEmpty == true
-        ? cache['fullName']!
-        : 'User';
-    final username = cache['username']?.isNotEmpty == true
-        ? '@${cache['username']}'
-        : '';
-    final email = cache['email'] ?? '';
+
+    // Prefer fresh DB values; fall back to the local cache while loading.
+    final dbProfile = profileAsync.valueOrNull;
+    final fullNameRaw = (dbProfile?['full_name'] as String?)?.isNotEmpty == true
+        ? dbProfile!['full_name'] as String
+        : (cache['fullName'] ?? '');
+    final usernameRaw = (dbProfile?['username'] as String?)?.isNotEmpty == true
+        ? dbProfile!['username'] as String
+        : (cache['username'] ?? '');
+    final emailRaw = (dbProfile?['email'] as String?)?.isNotEmpty == true
+        ? dbProfile!['email'] as String
+        : (cache['email'] ?? '');
+
+    final fullName = fullNameRaw.isNotEmpty ? fullNameRaw : 'User';
+    final username = usernameRaw.isNotEmpty ? '@$usernameRaw' : '';
+    final email = emailRaw;
 
     return Column(
       children: [
@@ -75,17 +86,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             Positioned(
               bottom: 0,
               right: 0,
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: Theme.of(context).cardColor,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      width: 2),
+              child: GestureDetector(
+                onTap: _showEditProfile,
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        width: 2),
+                  ),
+                  child:
+                      Icon(Icons.edit_outlined, color: cs.onSurface, size: 16),
                 ),
-                child: Icon(Icons.edit_outlined, color: cs.onSurface, size: 16),
               ),
             ),
           ],
@@ -198,7 +213,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _SettingsTile(
             icon: Icons.lock_outline,
             label: 'Change Password',
-            onTap: () => _showComingSoon('Change Password'),
+            onTap: _handleChangePassword,
           ),
           const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
           _SettingsTile(
@@ -210,7 +225,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _SettingsTile(
             icon: Icons.help_outline,
             label: 'Help & Support',
-            onTap: () => _showComingSoon('Help & Support'),
+            onTap: _showHelpDialog,
             isLast: true,
           ),
         ],
@@ -456,6 +471,122 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Future<void> _showEditProfile() async {
+    final profile = ref.read(myProfileProvider).valueOrNull;
+    final cache = PreferencesService().getUserCache();
+    final nameCtrl = TextEditingController(
+        text: (profile?['full_name'] as String?) ?? cache['fullName'] ?? '');
+    final userCtrl = TextEditingController(
+        text: (profile?['username'] as String?) ?? cache['username'] ?? '');
+
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    bool saving = false;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) {
+          InputDecoration field(String label) => InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(color: Colors.grey),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.white24),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: _accent),
+                ),
+              );
+
+          return AlertDialog(
+            backgroundColor: cardColor,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Text('Edit Profile',
+                style:
+                    TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: TextStyle(color: onSurface),
+                  decoration: field('Full Name'),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: userCtrl,
+                  style: TextStyle(color: onSurface),
+                  decoration: field('Username'),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _accent,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8)),
+                ),
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+                        final uname = userCtrl.text.trim();
+                        final messenger = ScaffoldMessenger.of(context);
+                        if (name.isEmpty || uname.isEmpty) {
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Name and username are required'),
+                            backgroundColor: Colors.redAccent,
+                          ));
+                          return;
+                        }
+                        setDialog(() => saving = true);
+                        try {
+                          await AuthService()
+                              .updateProfile(fullName: name, username: uname);
+                          ref.invalidate(myProfileProvider);
+                          if (ctx.mounted) Navigator.of(ctx).pop();
+                          messenger.showSnackBar(const SnackBar(
+                            content: Text('Profile updated!'),
+                            backgroundColor: _accent,
+                            behavior: SnackBarBehavior.floating,
+                          ));
+                        } catch (e) {
+                          setDialog(() => saving = false);
+                          final msg = e.toString().contains('already taken')
+                              ? 'Username already taken'
+                              : 'Could not update profile';
+                          messenger.showSnackBar(SnackBar(
+                            content: Text(msg),
+                            backgroundColor: Colors.redAccent,
+                          ));
+                        }
+                      },
+                child: saving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.black),
+                      )
+                    : const Text('Save',
+                        style: TextStyle(
+                            color: Colors.black, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   void _showAboutDialog() {
     final cardColor = Theme.of(context).cardColor;
     final onSurface = Theme.of(context).colorScheme.onSurface;
@@ -518,20 +649,74 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _showComingSoon(String feature) {
+  Future<void> _handleChangePassword() async {
+    final email =
+        AuthService().getCurrentUser()?.email ?? PreferencesService().getUserCache()['email'];
+    final messenger = ScaffoldMessenger.of(context);
+    if (email == null || email.isEmpty) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('No email on file for this account'),
+        backgroundColor: Colors.redAccent,
+      ));
+      return;
+    }
+    try {
+      await AuthService().resetPassword(email);
+      messenger.showSnackBar(SnackBar(
+        content: Text('Password reset link sent to $email'),
+        backgroundColor: _accent,
+        behavior: SnackBarBehavior.floating,
+      ));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Could not send reset email. Try again.'),
+        backgroundColor: Colors.redAccent,
+      ));
+    }
+  }
+
+  void _showHelpDialog() {
     final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(feature,
-            style: TextStyle(
-                color: Theme.of(ctx).colorScheme.onSurface,
-                fontWeight: FontWeight.bold)),
-        content: const Text(
-          'This feature is coming soon!',
-          style: TextStyle(color: Colors.grey),
+        title: Row(
+          children: [
+            const Icon(Icons.help_outline, color: _accent, size: 24),
+            const SizedBox(width: 10),
+            Text('Help & Support',
+                style:
+                    TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Need a hand with FairShare?',
+              style: TextStyle(color: onSurface, fontSize: 14),
+            ),
+            const SizedBox(height: 12),
+            const Row(
+              children: [
+                Icon(Icons.email_outlined, color: _accent, size: 16),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text('support@fairshare.app',
+                      style: TextStyle(color: Colors.grey, fontSize: 13)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Email us with your question and the group involved, and we\'ll get back to you within 24 hours.',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+          ],
         ),
         actions: [
           ElevatedButton(
@@ -541,7 +726,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('OK',
+            child: const Text('Close',
                 style:
                     TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
           ),

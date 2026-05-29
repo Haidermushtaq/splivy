@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/expense_model.dart';
 
@@ -75,7 +76,7 @@ class ExpensesService {
         }
       }
 
-      final edges = _computeSettlementEdges(
+      final edges = computeSettlementEdges(
         isMultiPayer: isMultiPayer,
         singlePayerId: singlePayerId,
         totalAmount: totalAmount,
@@ -120,7 +121,8 @@ class ExpensesService {
 
   /// Reduces every participant's net position (paid minus owed) into a minimal
   /// set of debtor -> creditor transfers. Returns `{from, to, amount}` maps.
-  List<Map<String, dynamic>> _computeSettlementEdges({
+  @visibleForTesting
+  static List<Map<String, dynamic>> computeSettlementEdges({
     required bool isMultiPayer,
     String? singlePayerId,
     required double totalAmount,

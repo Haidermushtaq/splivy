@@ -29,3 +29,12 @@ final currentUserProvider = Provider<User?>((ref) {
     error: (_, _) => null,
   );
 });
+
+/// Fetches the signed-in user's profile (full name, username, email…) from the
+/// database, refreshing the local cache as a side effect.
+///
+/// Used by: ProfileScreen, app drawer header.
+/// Updates when: invalidated after editing the profile.
+final myProfileProvider = FutureProvider<Map<String, dynamic>>((ref) {
+  return ref.read(authServiceProvider).getMyProfile();
+});
