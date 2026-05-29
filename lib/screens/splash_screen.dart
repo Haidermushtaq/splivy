@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/preferences_service.dart';
 import '../widgets/lottie_widget.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -25,15 +26,36 @@ class _SplashScreenState extends State<SplashScreen>
         CurvedAnimation(parent: _fadeController, curve: Curves.easeIn);
     _fadeController.forward();
 
-    Future.delayed(const Duration(milliseconds: 2500), () {
-      if (mounted) {
-        final user = Supabase.instance.client.auth.currentUser;
-        final session = Supabase.instance.client.auth.currentSession;
-        Navigator.of(context).pushReplacementNamed(
-          (user != null && session != null) ? '/dashboard' : '/login',
-        );
-      }
-    });
+    Future.delayed(const Duration(milliseconds: 2500), _navigate);
+  }
+
+  void _navigate() {
+    if (!mounted) return;
+    final prefs = PreferencesService();
+
+    if (!prefs.isOnboardingDone()) {
+      Navigator.of(context).pushReplacementNamed('/onboarding');
+      return;
+    }
+
+    final user = Supabase.instance.client.auth.currentUser;
+    final session = Supabase.instance.client.auth.currentSession;
+
+    if (user != null && session != null) {
+      Navigator.of(context).pushReplacementNamed('/dashboard');
+    } else if (prefs.getLastUserId() != null) {
+      // Had a session before — show expired message then go to login.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Session expired. Please log in again.'),
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.orange,
+        ),
+      );
+      Navigator.of(context).pushReplacementNamed('/login');
+    } else {
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/auth_service.dart';
+import '../../services/preferences_service.dart';
 import '../../services/reminder_service.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -16,9 +17,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   static const _accent = Color(0xFF00D4AA);
 
   void _toggleTheme(bool isDark) {
-    ref.read(themeProvider.notifier).state =
-        isDark ? ThemeMode.dark : ThemeMode.light;
-    saveThemePreference(isDark);
+    ref.read(themeProvider.notifier).setTheme(
+        isDark ? ThemeMode.dark : ThemeMode.light);
   }
 
   @override
@@ -52,6 +52,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildAvatarSection(ColorScheme cs) {
+    final cache = PreferencesService().getUserCache();
+    final fullName = cache['fullName']?.isNotEmpty == true
+        ? cache['fullName']!
+        : 'User';
+    final username = cache['username']?.isNotEmpty == true
+        ? '@${cache['username']}'
+        : '';
+    final email = cache['email'] ?? '';
+
     return Column(
       children: [
         Stack(
@@ -81,27 +90,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
         const SizedBox(height: 14),
         Text(
-          'Haider Mushtaq',
+          fullName,
           style: TextStyle(
             color: cs.onSurface,
             fontSize: 22,
             fontWeight: FontWeight.bold,
           ),
         ),
-        const SizedBox(height: 4),
-        const Text(
-          '@haider_mushtaq',
-          style: TextStyle(
-            color: _accent,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+        if (username.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            username,
+            style: const TextStyle(
+              color: _accent,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
           ),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'haider@example.com',
-          style: TextStyle(color: Colors.grey, fontSize: 13),
-        ),
+        ],
+        if (email.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            email,
+            style: const TextStyle(color: Colors.grey, fontSize: 13),
+          ),
+        ],
       ],
     );
   }

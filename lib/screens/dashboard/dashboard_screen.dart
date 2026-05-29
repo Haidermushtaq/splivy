@@ -8,6 +8,7 @@ import '../../widgets/app_drawer.dart';
 import '../../widgets/connection_status_bar.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/notification_service.dart';
+import '../../services/preferences_service.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -104,6 +105,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final cache = PreferencesService().getUserCache();
+    final fullName = cache['fullName'] ?? '';
+    final firstName = fullName.split(' ').first;
+    final greeting = firstName.isNotEmpty
+        ? 'Welcome back, $firstName!'
+        : 'Welcome back!';
+
     return AppBar(
       titleSpacing: 12,
       leading: Builder(
@@ -112,7 +120,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           onPressed: () => Scaffold.of(ctx).openDrawer(),
         ),
       ),
-      title: const Text('FairShare'),
+      title: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'FairShare',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          Text(
+            greeting,
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
       actions: [
         IconButton(
           icon: const Icon(Icons.notifications_outlined),
