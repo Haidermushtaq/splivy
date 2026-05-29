@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:app_links/app_links.dart';
 import 'config/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
@@ -52,6 +53,17 @@ void main() async {
   await prefsService.initialize();
 
   await NotificationService().initialize(onTap: _handleNotificationTap);
+
+  // Deep link handling for email verification callback
+  final appLinks = AppLinks();
+  appLinks.uriLinkStream.listen((uri) {
+    if (uri.host == 'login-callback') {
+      final accessToken = uri.queryParameters['access_token'];
+      if (accessToken != null) {
+        _navigatorKey.currentState?.pushReplacementNamed('/dashboard');
+      }
+    }
+  });
 
   runApp(
     ProviderScope(
