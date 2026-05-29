@@ -66,20 +66,39 @@ class UserBalance {
 
 class DebtItem {
   final String expenseId;
+  final String splitId;
   final String name;
   final String groupName;
   final double amount;
   final String dueSince;
   final bool youOwe;
+  final String expenseTitle;
+  final String? receiverPhone;
+  final String paymentStatus;
+  final String? paymentProofUrl;
+  final String? paymentMethod;
 
   const DebtItem({
     required this.expenseId,
+    required this.splitId,
     required this.name,
     required this.groupName,
     required this.amount,
     required this.dueSince,
     required this.youOwe,
+    required this.expenseTitle,
+    this.receiverPhone,
+    this.paymentStatus = 'pending',
+    this.paymentProofUrl,
+    this.paymentMethod,
   });
+
+  bool get isPending => paymentStatus == 'pending';
+  bool get isPayerMarked => paymentStatus == 'payer_marked';
+  bool get isConfirmed => paymentStatus == 'confirmed';
+  bool get isCashSettled => paymentStatus == 'cash_settled';
+  bool get isDisputed => paymentStatus == 'disputed';
+  bool get isSettled => isConfirmed || isCashSettled;
 }
 
 class GuestSplit {

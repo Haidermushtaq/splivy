@@ -175,7 +175,7 @@ class ExpensesService {
 
     final mySplits = await _client
         .from('expense_splits')
-        .select('expense_id, amount')
+        .select('id, expense_id, amount, payment_status, payment_proof_url, payment_method')
         .eq('user_id', _userId)
         .eq('is_settled', false);
 
@@ -192,7 +192,7 @@ class ExpensesService {
 
       final paidByProfile = await _client
           .from('profiles')
-          .select('full_name')
+          .select('full_name, phone')
           .eq('id', exp['paid_by'] as String)
           .maybeSingle();
 
@@ -203,6 +203,7 @@ class ExpensesService {
           .maybeSingle();
 
       final paidByName = paidByProfile?['full_name'] as String? ?? 'Unknown';
+      final receiverPhone = paidByProfile?['phone'] as String?;
       final groupName = groupRow?['name'] as String? ?? 'Unknown Group';
       final createdAt = DateTime.parse(exp['created_at'] as String);
       final dueSince =
@@ -210,11 +211,17 @@ class ExpensesService {
 
       debts.add(DebtItem(
         expenseId: exp['id'] as String,
+        splitId: s['id'] as String,
         name: paidByName,
         groupName: groupName,
         dueSince: dueSince,
         amount: (s['amount'] as num).toDouble(),
         youOwe: true,
+        expenseTitle: exp['title'] as String,
+        receiverPhone: receiverPhone,
+        paymentStatus: s['payment_status'] as String? ?? 'pending',
+        paymentProofUrl: s['payment_proof_url'] as String?,
+        paymentMethod: s['payment_method'] as String?,
       ));
     }
 
@@ -227,7 +234,7 @@ class ExpensesService {
     for (final exp in myPaidExpenses as List) {
       final unsettledSplits = await _client
           .from('expense_splits')
-          .select('user_id, amount')
+          .select('id, user_id, amount, payment_status, payment_proof_url, payment_method')
           .eq('expense_id', exp['id'] as String)
           .neq('user_id', _userId)
           .eq('is_settled', false);
@@ -235,7 +242,7 @@ class ExpensesService {
       for (final s in unsettledSplits as List) {
         final debtorProfile = await _client
             .from('profiles')
-            .select('full_name')
+            .select('full_name, phone')
             .eq('id', s['user_id'] as String)
             .maybeSingle();
 
@@ -246,6 +253,7 @@ class ExpensesService {
             .maybeSingle();
 
         final debtorName = debtorProfile?['full_name'] as String? ?? 'Unknown';
+        final debtorPhone = debtorProfile?['phone'] as String?;
         final groupName = groupRow?['name'] as String? ?? 'Unknown Group';
         final createdAt = DateTime.parse(exp['created_at'] as String);
         final dueSince =
@@ -253,11 +261,17 @@ class ExpensesService {
 
         debts.add(DebtItem(
           expenseId: exp['id'] as String,
+          splitId: s['id'] as String,
           name: debtorName,
           groupName: groupName,
           dueSince: dueSince,
           amount: (s['amount'] as num).toDouble(),
           youOwe: false,
+          expenseTitle: exp['title'] as String,
+          receiverPhone: debtorPhone,
+          paymentStatus: s['payment_status'] as String? ?? 'pending',
+          paymentProofUrl: s['payment_proof_url'] as String?,
+          paymentMethod: s['payment_method'] as String?,
         ));
       }
     }

@@ -31,10 +31,13 @@ final _navigatorKey = GlobalKey<NavigatorState>();
 
 void _handleNotificationTap(String? payload) {
   final nav = _navigatorKey.currentState;
-  if (nav == null) return;
-  if (payload == 'settle_up') {
+  if (nav == null || payload == null) return;
+
+  if (payload == 'settle_up' ||
+      payload.startsWith('confirm_payment_') ||
+      payload == 'payment_confirmed') {
     nav.pushNamed('/settle-up');
-  } else if (payload?.startsWith('group_') == true) {
+  } else if (payload.startsWith('group_')) {
     nav.pushNamed('/groups');
   } else if (payload == 'friends') {
     nav.pushNamed('/friends');

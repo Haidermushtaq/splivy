@@ -96,6 +96,65 @@ class NotificationService {
     );
   }
 
+  Future<void> showPaymentReceivedNotification({
+    required String payerName,
+    required double amount,
+    required String method,
+    required String splitId,
+  }) async {
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 10000,
+      'Payment Received! 💰',
+      '$payerName paid PKR ${amount.toStringAsFixed(0)} via $method. Tap to confirm.',
+      _immediateDetails(),
+      payload: 'confirm_payment_$splitId',
+    );
+  }
+
+  Future<void> showPaymentConfirmedNotification({
+    required String receiverName,
+    required double amount,
+  }) async {
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 10000,
+      'Payment Confirmed ✅',
+      '$receiverName confirmed your payment of PKR ${amount.toStringAsFixed(0)}',
+      _immediateDetails(),
+      payload: 'payment_confirmed',
+    );
+  }
+
+  Future<void> showCashPaymentNotification({
+    required String payerName,
+    required double amount,
+    required bool isPayer,
+  }) async {
+    final title = isPayer ? 'Cash Payment Marked' : 'Cash Payment Confirmed ✅';
+    final body = isPayer
+        ? '$payerName marked PKR ${amount.toStringAsFixed(0)} as paid cash'
+        : '$payerName confirmed receiving PKR ${amount.toStringAsFixed(0)} cash';
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 10000,
+      title,
+      body,
+      _immediateDetails(),
+      payload: 'settle_up',
+    );
+  }
+
+  Future<void> showDisputeNotification({
+    required String disputerName,
+    required String message,
+  }) async {
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 10000,
+      'Payment Disputed ⚠️',
+      '$disputerName disputed your payment: $message',
+      _immediateDetails(),
+      payload: 'settle_up',
+    );
+  }
+
   // ── Scheduled notifications ─────────────────────────────────────────────────
 
   Future<void> scheduleReminderNotification({
