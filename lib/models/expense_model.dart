@@ -1,9 +1,43 @@
+import 'expense_payer_model.dart';
+
+class ExpenseSplit {
+  final String id;
+  final String expenseId;
+  final String userId;
+  final String? userName;
+  final double amount;
+  final bool isSettled;
+  final String paymentStatus;
+
+  const ExpenseSplit({
+    required this.id,
+    required this.expenseId,
+    required this.userId,
+    this.userName,
+    required this.amount,
+    required this.isSettled,
+    this.paymentStatus = 'pending',
+  });
+
+  factory ExpenseSplit.fromJson(Map<String, dynamic> json, {String? userName}) {
+    return ExpenseSplit(
+      id: json['id'] as String,
+      expenseId: json['expense_id'] as String,
+      userId: json['user_id'] as String,
+      userName: userName,
+      amount: (json['amount'] as num).toDouble(),
+      isSettled: json['is_settled'] as bool? ?? false,
+      paymentStatus: json['payment_status'] as String? ?? 'pending',
+    );
+  }
+}
+
 class Expense {
   final String id;
   final String groupId;
   final String title;
   final double amount;
-  final String paidBy;
+  final String? paidBy;
   final String paidByName;
   final String category;
   final String? note;
@@ -11,6 +45,9 @@ class Expense {
   final bool isSettled;
   final bool isCustom;
   final bool isArchived;
+  final bool isMultiPayer;
+  final List<ExpensePayer> payers;
+  final List<ExpenseSplit> splits;
   final DateTime createdAt;
 
   const Expense({
@@ -18,7 +55,7 @@ class Expense {
     required this.groupId,
     required this.title,
     required this.amount,
-    required this.paidBy,
+    this.paidBy,
     required this.paidByName,
     required this.category,
     this.note,
@@ -26,6 +63,9 @@ class Expense {
     required this.isSettled,
     required this.isCustom,
     required this.isArchived,
+    this.isMultiPayer = false,
+    this.payers = const [],
+    this.splits = const [],
     required this.createdAt,
   });
 
@@ -36,13 +76,15 @@ class Expense {
     String paidByName = 'Unknown',
     double userShare = 0,
     bool isSettled = false,
+    List<ExpensePayer> payers = const [],
+    List<ExpenseSplit> splits = const [],
   }) {
     return Expense(
       id: map['id'] as String,
       groupId: map['group_id'] as String,
       title: map['title'] as String,
       amount: (map['amount'] as num).toDouble(),
-      paidBy: map['paid_by'] as String,
+      paidBy: map['paid_by'] as String?,
       paidByName: paidByName,
       category: map['category'] as String? ?? 'Other',
       note: map['note'] as String?,
@@ -50,6 +92,9 @@ class Expense {
       isSettled: isSettled,
       isCustom: map['is_custom'] as bool? ?? false,
       isArchived: map['is_archived'] as bool? ?? false,
+      isMultiPayer: map['is_multi_payer'] as bool? ?? false,
+      payers: payers,
+      splits: splits,
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
