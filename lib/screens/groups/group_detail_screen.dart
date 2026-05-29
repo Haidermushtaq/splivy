@@ -395,10 +395,10 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
 
   Widget _buildExpenseCard(Expense expense) {
     final youOwe = !expense.isSettled &&
-        expense.paidByName != 'You' &&
+        expense.userOwes &&
         expense.userShare > 0;
     final youAreOwed = !expense.isSettled &&
-        expense.paidByName == 'You' &&
+        !expense.userOwes &&
         expense.userShare > 0;
 
     final shareColor =

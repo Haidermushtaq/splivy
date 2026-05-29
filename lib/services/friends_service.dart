@@ -138,49 +138,42 @@ class FriendsService {
       _getBalanceWithUser(friendId);
 
   Future<double> _getBalanceWithUser(String otherUserId) async {
-    double balance = 0;
-
     final sharedGroups = await _getSharedGroupIds(otherUserId);
     if (sharedGroups.isEmpty) return 0;
 
-    final myPaidExpenses = await _client
+    final expenseRows = await _client
         .from('expenses')
-        .select('id, amount')
+        .select('id')
         .inFilter('group_id', sharedGroups)
-        .eq('paid_by', _userId)
         .eq('is_archived', false);
+    final expenseIds =
+        (expenseRows as List).map((e) => e['id'] as String).toList();
+    if (expenseIds.isEmpty) return 0;
 
-    for (final exp in myPaidExpenses as List) {
-      final split = await _client
-          .from('expense_splits')
-          .select('amount, is_settled')
-          .eq('expense_id', exp['id'] as String)
-          .eq('user_id', otherUserId)
-          .eq('is_settled', false)
-          .maybeSingle();
-      if (split != null) {
-        balance += (split['amount'] as num).toDouble();
-      }
+    double balance = 0;
+
+    // They owe me.
+    final theyOweMe = await _client
+        .from('expense_splits')
+        .select('amount')
+        .eq('owed_to', _userId)
+        .eq('user_id', otherUserId)
+        .eq('is_settled', false)
+        .inFilter('expense_id', expenseIds);
+    for (final s in theyOweMe as List) {
+      balance += (s['amount'] as num).toDouble();
     }
 
-    final theirPaidExpenses = await _client
-        .from('expenses')
-        .select('id, amount')
-        .inFilter('group_id', sharedGroups)
-        .eq('paid_by', otherUserId)
-        .eq('is_archived', false);
-
-    for (final exp in theirPaidExpenses as List) {
-      final split = await _client
-          .from('expense_splits')
-          .select('amount, is_settled')
-          .eq('expense_id', exp['id'] as String)
-          .eq('user_id', _userId)
-          .eq('is_settled', false)
-          .maybeSingle();
-      if (split != null) {
-        balance -= (split['amount'] as num).toDouble();
-      }
+    // I owe them.
+    final iOweThem = await _client
+        .from('expense_splits')
+        .select('amount')
+        .eq('owed_to', otherUserId)
+        .eq('user_id', _userId)
+        .eq('is_settled', false)
+        .inFilter('expense_id', expenseIds);
+    for (final s in iOweThem as List) {
+      balance -= (s['amount'] as num).toDouble();
     }
 
     return balance;

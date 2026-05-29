@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/group_model.dart';
-import '../models/expense_model.dart';
+import 'expenses_service.dart';
 
 class GroupsService {
   final _client = Supabase.instance.client;
@@ -62,41 +62,33 @@ class GroupsService {
           ? (expenses.first['title'] as String)
           : 'No expenses yet';
 
-      double userBalance = 0;
-      final myExpenses = await _client
+      final expenseIdRows = await _client
           .from('expenses')
-          .select('id, amount')
+          .select('id')
           .eq('group_id', gId)
-          .eq('paid_by', _userId)
           .eq('is_archived', false);
+      final expenseIds =
+          (expenseIdRows as List).map((e) => e['id'] as String).toList();
 
-      for (final exp in myExpenses as List) {
-        final splits = await _client
+      double userBalance = 0;
+      if (expenseIds.isNotEmpty) {
+        final owedToMe = await _client
             .from('expense_splits')
-            .select('amount, is_settled, user_id')
-            .eq('expense_id', exp['id'] as String)
-            .neq('user_id', _userId)
-            .eq('is_settled', false);
-        for (final s in splits as List) {
+            .select('amount')
+            .eq('owed_to', _userId)
+            .eq('is_settled', false)
+            .inFilter('expense_id', expenseIds);
+        for (final s in owedToMe as List) {
           userBalance += (s['amount'] as num).toDouble();
         }
-      }
 
-      final mySplits = await _client
-          .from('expense_splits')
-          .select('amount, is_settled, expense_id')
-          .eq('user_id', _userId)
-          .eq('is_settled', false);
-
-      for (final s in mySplits as List) {
-        final expRow = await _client
-            .from('expenses')
-            .select('group_id, paid_by')
-            .eq('id', s['expense_id'] as String)
-            .eq('group_id', gId)
-            .neq('paid_by', _userId)
-            .maybeSingle();
-        if (expRow != null) {
+        final iOwe = await _client
+            .from('expense_splits')
+            .select('amount')
+            .eq('user_id', _userId)
+            .eq('is_settled', false)
+            .inFilter('expense_id', expenseIds);
+        for (final s in iOwe as List) {
           userBalance -= (s['amount'] as num).toDouble();
         }
       }
@@ -142,67 +134,15 @@ class GroupsService {
           .toList();
     }
 
-    final expenseRows = await _client
-        .from('expenses')
-        .select()
-        .eq('group_id', groupId)
-        .eq('is_archived', false)
-        .order('created_at', ascending: false);
-
-    final List<Expense> expenses = [];
-    for (final e in expenseRows as List) {
-      final paidById = e['paid_by'] as String;
-      final paidByProfile = members.firstWhere(
-        (m) => m.id == paidById,
-        orElse: () => GroupMember(id: paidById, fullName: 'Unknown', username: ''),
-      );
-
-      final mySplit = await _client
-          .from('expense_splits')
-          .select('amount, is_settled')
-          .eq('expense_id', e['id'] as String)
-          .eq('user_id', _userId)
-          .maybeSingle();
-
-      double userShare = 0;
-      bool isSettled = true;
-      if (mySplit != null) {
-        userShare = (mySplit['amount'] as num).toDouble();
-        isSettled = mySplit['is_settled'] as bool? ?? false;
-        if (paidById == _userId) {
-          final totalAmount = (e['amount'] as num).toDouble();
-          userShare = totalAmount - userShare;
-        }
-      } else if (paidById == _userId) {
-        final otherSplits = await _client
-            .from('expense_splits')
-            .select('amount, is_settled')
-            .eq('expense_id', e['id'] as String)
-            .neq('user_id', _userId);
-        double othersTotal = 0;
-        bool allSettled = true;
-        for (final s in otherSplits as List) {
-          othersTotal += (s['amount'] as num).toDouble();
-          if (!(s['is_settled'] as bool? ?? false)) allSettled = false;
-        }
-        userShare = othersTotal;
-        isSettled = allSettled;
-      }
-
-      expenses.add(Expense.fromMap(
-        e,
-        paidByName: paidByProfile.fullName,
-        userShare: userShare,
-        isSettled: isSettled,
-      ));
-    }
+    final expenses = await ExpensesService().getGroupExpenses(groupId);
 
     double userBalance = 0;
     for (final exp in expenses) {
-      if (exp.paidBy == _userId) {
-        if (!exp.isSettled) userBalance += exp.userShare;
+      if (exp.isSettled) continue;
+      if (exp.userOwes) {
+        userBalance -= exp.userShare;
       } else {
-        if (!exp.isSettled) userBalance -= exp.userShare;
+        userBalance += exp.userShare;
       }
     }
 

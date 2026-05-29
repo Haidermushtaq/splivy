@@ -264,26 +264,17 @@ class PaymentService {
   Future<List<Map<String, dynamic>>> getPendingConfirmations() async {
     final splits = await _client
         .from('expense_splits')
-        .select('id, expense_id, amount, payment_status, paid_by_user, payment_method')
+        .select(
+            'id, expense_id, amount, payment_status, paid_by_user, payment_method, expenses!inner(title)')
+        .eq('owed_to', _userId)
         .eq('payment_status', PaymentStatus.payerMarked);
 
-    final List<Map<String, dynamic>> pendingForUser = [];
-
-    for (final split in splits as List) {
-      final expense = await _client
-          .from('expenses')
-          .select('paid_by, title')
-          .eq('id', split['expense_id'] as String)
-          .maybeSingle();
-
-      if (expense != null && expense['paid_by'] == _userId) {
-        pendingForUser.add({
-          ...split,
-          'expense_title': expense['title'],
-        });
-      }
-    }
-
-    return pendingForUser;
+    return (splits as List).map((split) {
+      final expense = split['expenses'] as Map;
+      return {
+        ...split as Map<String, dynamic>,
+        'expense_title': expense['title'],
+      };
+    }).toList();
   }
 }

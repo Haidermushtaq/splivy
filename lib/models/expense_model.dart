@@ -42,6 +42,7 @@ class Expense {
   final String category;
   final String? note;
   final double userShare;
+  final bool userOwes;
   final bool isSettled;
   final bool isCustom;
   final bool isArchived;
@@ -60,6 +61,7 @@ class Expense {
     required this.category,
     this.note,
     required this.userShare,
+    this.userOwes = false,
     required this.isSettled,
     required this.isCustom,
     required this.isArchived,
@@ -75,6 +77,7 @@ class Expense {
     Map<String, dynamic> map, {
     String paidByName = 'Unknown',
     double userShare = 0,
+    bool userOwes = false,
     bool isSettled = false,
     List<ExpensePayer> payers = const [],
     List<ExpenseSplit> splits = const [],
@@ -89,6 +92,7 @@ class Expense {
       category: map['category'] as String? ?? 'Other',
       note: map['note'] as String?,
       userShare: userShare,
+      userOwes: userOwes,
       isSettled: isSettled,
       isCustom: map['is_custom'] as bool? ?? false,
       isArchived: map['is_archived'] as bool? ?? false,
