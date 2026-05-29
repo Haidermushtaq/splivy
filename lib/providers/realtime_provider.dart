@@ -9,14 +9,20 @@ import 'expenses_provider.dart';
 import 'friends_provider.dart';
 import 'groups_provider.dart';
 
+/// Singleton [RealtimeService]; disposed automatically when the provider
+/// is destroyed (e.g. on logout).
 final realtimeServiceProvider = Provider<RealtimeService>((ref) {
   final service = RealtimeService();
   ref.onDispose(service.disposeAll);
   return service;
 });
 
-// Real-time expense stream for a group — uses asyncMap so we get fully
-// computed expenses (paidByName, userShare, isSettled) on every update.
+/// Live expense stream for a group.
+///
+/// Uses asyncMap so every Supabase row-change triggers a full re-fetch that
+/// computes paidByName, userShare, and isSettled server-side.
+/// Used by: GroupDetailScreen (AnimatedList).
+/// Updates when: any row in 'expenses' for this group changes.
 final groupExpensesStreamProvider =
     StreamProvider.family<List<Expense>, String>((ref, groupId) {
   final service = ref.read(expensesServiceProvider);
@@ -27,7 +33,10 @@ final groupExpensesStreamProvider =
       .asyncMap((_) => service.getGroupExpenses(groupId));
 });
 
-// Real-time balance stream — re-calculates whenever the current user's splits change.
+/// Live net-balance stream for the current user.
+///
+/// Used by: DashboardScreen summary card — animates when balance changes.
+/// Updates when: any row in 'expense_splits' for the current user changes.
 final userBalanceStreamProvider = StreamProvider<UserBalance>((ref) {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return const Stream.empty();
@@ -39,8 +48,12 @@ final userBalanceStreamProvider = StreamProvider<UserBalance>((ref) {
       .asyncMap((_) => service.getUserTotalBalance());
 });
 
-// Real-time pending friend requests stream.
-final friendRequestsStreamProvider = StreamProvider<List<PendingRequest>>((ref) {
+/// Live stream of pending friend requests directed at the current user.
+///
+/// Used by: FriendsScreen (request list), DashboardScreen bottom-nav badge.
+/// Updates when: any row in 'friends' where friend_id = current user changes.
+final friendRequestsStreamProvider =
+    StreamProvider<List<PendingRequest>>((ref) {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return const Stream.empty();
   final service = ref.read(friendsServiceProvider);
@@ -51,7 +64,10 @@ final friendRequestsStreamProvider = StreamProvider<List<PendingRequest>>((ref) 
       .asyncMap((_) => service.getPendingRequests());
 });
 
-// Real-time group members stream for a specific group.
+/// Live stream of group members for a single group.
+///
+/// Used by: GroupDetailScreen (members row).
+/// Updates when: any row in 'group_members' for this group changes.
 final groupMembersStreamProvider =
     StreamProvider.family<List<GroupMember>, String>((ref, groupId) {
   final service = ref.read(groupsServiceProvider);
@@ -65,8 +81,12 @@ final groupMembersStreamProvider =
       });
 });
 
-// Fires a local notification when a new friend request arrives.
-// Watch this provider at the app level to keep it alive.
+/// Background listener that fires a local notification when a NEW friend
+/// request arrives while the app is open.
+///
+/// Keep alive at the app level (watched in FairShareApp.build) so it stays
+/// active regardless of which screen is visible.
+/// Does NOT emit a value — side-effect only.
 final friendRequestNotificationProvider = Provider.autoDispose((ref) {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return;
@@ -111,7 +131,11 @@ final friendRequestNotificationProvider = Provider.autoDispose((ref) {
   ref.onDispose(sub.cancel);
 });
 
-// Real-time groups list — re-fetches whenever the user's group memberships change.
+/// Live groups list for the current user.
+///
+/// Used by: GroupsScreen — refreshes the list automatically when the user
+/// joins or is removed from a group.
+/// Updates when: any row in 'group_members' for the current user changes.
 final userGroupsStreamProvider = StreamProvider<List<Group>>((ref) {
   final user = Supabase.instance.client.auth.currentUser;
   if (user == null) return const Stream.empty();

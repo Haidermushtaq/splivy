@@ -7,8 +7,9 @@ import '../profile/profile_screen.dart';
 import '../../widgets/app_drawer.dart';
 import '../../widgets/connection_status_bar.dart';
 import '../../providers/realtime_provider.dart';
+import '../../providers/app_state_provider.dart';
 import '../../services/notification_service.dart';
-import '../../services/preferences_service.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -105,12 +106,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   PreferredSizeWidget _buildAppBar() {
-    final cache = PreferencesService().getUserCache();
-    final fullName = cache['fullName'] ?? '';
-    final firstName = fullName.split(' ').first;
-    final greeting = firstName.isNotEmpty
-        ? 'Welcome back, $firstName!'
-        : 'Welcome back!';
+    final appState = ref.watch(appStateProvider);
+    final firstName = appState.currentFullName?.split(' ').first ?? '';
+    final greeting =
+        firstName.isNotEmpty ? 'Welcome back, $firstName!' : 'Welcome back!';
 
     return AppBar(
       titleSpacing: 12,
@@ -291,9 +290,8 @@ class _SummaryCardState extends ConsumerState<_SummaryCard>
     final balanceAsync = ref.watch(userBalanceStreamProvider);
 
     return balanceAsync.when(
-      loading: () =>
-          _buildCard(context, netBalance: 0, totalOwed: 0, totalOwing: 0),
-      error: (e, st) =>
+      loading: () => const BalanceCardSkeleton(),
+      error: (e, _) =>
           _buildCard(context, netBalance: 0, totalOwed: 0, totalOwing: 0),
       data: (balance) {
         final netText = _formatNet(balance.netBalance);

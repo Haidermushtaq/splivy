@@ -5,7 +5,9 @@ import '../../models/friend_model.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/friends_service.dart';
+import '../../utils/error_handler.dart';
 import '../../widgets/lottie_widget.dart';
+import '../../widgets/skeleton_loader.dart';
 import 'friend_detail_screen.dart';
 
 class FriendsScreen extends ConsumerStatefulWidget {
@@ -62,14 +64,9 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       ref.invalidate(pendingRequestsProvider);
       ref.invalidate(friendRequestsStreamProvider);
       ref.invalidate(friendsListProvider);
+      if (mounted) ErrorHandler.showSuccess(context, 'Friend request accepted!');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to accept: $e'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      if (mounted) ErrorHandler.showError(context, e);
     }
   }
 
@@ -79,13 +76,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
       ref.invalidate(pendingRequestsProvider);
       ref.invalidate(friendRequestsStreamProvider);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Failed to decline: $e'),
-          backgroundColor: Colors.red.shade700,
-          behavior: SnackBarBehavior.floating,
-        ));
-      }
+      if (mounted) ErrorHandler.showError(context, e);
     }
   }
 
@@ -139,20 +130,28 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
               },
             ),
             friendsAsync.when(
-              loading: () => const SliverFillRemaining(
-                child: Center(
-                  child: LottieWidget(
-                    assetPath: 'assets/animations/loading.json',
-                    width: 100,
-                    height: 100,
-                    repeat: true,
-                  ),
-                ),
-              ),
+              loading: () => const FriendListSkeleton(),
               error: (e, _) => SliverFillRemaining(
                 child: Center(
-                  child: Text('Error: $e',
-                      style: const TextStyle(color: Colors.grey)),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.error_outline,
+                          color: Colors.grey, size: 48),
+                      const SizedBox(height: 12),
+                      Text(ErrorHandler.getReadableError(e),
+                          style: const TextStyle(color: Colors.grey),
+                          textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: () => ref.invalidate(friendsListProvider),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: _accent),
+                        child: const Text('Retry',
+                            style: TextStyle(color: Colors.black)),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               data: (friends) {

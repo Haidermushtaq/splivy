@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/group_model.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/groups_service.dart';
+import '../../utils/error_handler.dart';
 import '../../widgets/lottie_widget.dart';
+import '../../widgets/skeleton_loader.dart';
 
 class GroupsScreen extends ConsumerStatefulWidget {
   const GroupsScreen({super.key});
@@ -86,14 +88,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
               try {
                 await GroupsService().createGroup(name);
                 ref.invalidate(userGroupsStreamProvider);
+                if (mounted) ErrorHandler.showSuccess(context, 'Group created!');
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text('Failed to create group: $e'),
-                    backgroundColor: Colors.red.shade700,
-                    behavior: SnackBarBehavior.floating,
-                  ));
-                }
+                if (mounted) ErrorHandler.showError(context, e);
               }
             },
             child: const Text('Create',
@@ -145,17 +142,26 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         ],
       ),
       body: groupsAsync.when(
-        loading: () => const Center(
-        child: LottieWidget(
-          assetPath: 'assets/animations/loading.json',
-          width: 100,
-          height: 100,
-          repeat: true,
-        ),
-      ),
+        loading: () => const GroupListSkeleton(),
         error: (e, _) => Center(
-          child: Text('Error: $e',
-              style: const TextStyle(color: Colors.grey)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.grey, size: 48),
+              const SizedBox(height: 12),
+              Text(ErrorHandler.getReadableError(e),
+                  style: const TextStyle(color: Colors.grey),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => ref.invalidate(userGroupsStreamProvider),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: _accent),
+                child: const Text('Retry',
+                    style: TextStyle(color: Colors.black)),
+              ),
+            ],
+          ),
         ),
         data: (groups) {
           final filtered = _filtered(groups);
