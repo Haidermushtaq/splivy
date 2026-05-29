@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'theme/app_theme.dart';
 import 'providers/auth_provider.dart';
 import 'providers/realtime_provider.dart';
 import 'providers/theme_provider.dart';
+import 'providers/preferences_provider.dart';
 import 'services/notification_service.dart';
+import 'services/preferences_service.dart';
 import 'services/reminder_service.dart';
 import 'utils/page_transitions.dart';
 import 'screens/splash_screen.dart';
@@ -23,6 +24,7 @@ import 'screens/friends/friends_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/expenses/custom_expenses_screen.dart';
 import 'screens/settle/settle_up_screen.dart';
+import 'screens/onboarding/onboarding_screen.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
 
@@ -32,7 +34,6 @@ void _handleNotificationTap(String? payload) {
   if (payload == 'settle_up') {
     nav.pushNamed('/settle-up');
   } else if (payload?.startsWith('group_') == true) {
-    // groupId only — group-detail needs groupName too; navigate to groups as fallback.
     nav.pushNamed('/groups');
   } else if (payload == 'friends') {
     nav.pushNamed('/friends');
@@ -46,15 +47,16 @@ void main() async {
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
   );
+
+  final prefsService = PreferencesService();
+  await prefsService.initialize();
+
   await NotificationService().initialize(onTap: _handleNotificationTap);
-  final prefs = await SharedPreferences.getInstance();
-  final isDark = prefs.getBool('theme_mode') ?? true;
+
   runApp(
     ProviderScope(
       overrides: [
-        themeProvider.overrideWith(
-          (ref) => isDark ? ThemeMode.dark : ThemeMode.light,
-        ),
+        preferencesServiceProvider.overrideWithValue(prefsService),
       ],
       child: const FairShareApp(),
     ),
@@ -100,6 +102,8 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
   switch (settings.name) {
     case '/':
       return slideRoute(const SplashScreen(), settings);
+    case '/onboarding':
+      return slideRoute(const OnboardingScreen(), settings);
     case '/login':
       return slideRoute(const LoginScreen(), settings);
     case '/signup':

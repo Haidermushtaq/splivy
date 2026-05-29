@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/auth_service.dart';
+import '../../services/preferences_service.dart';
 import '../../widgets/lottie_widget.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -34,10 +36,23 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await _authService.signIn(
+      final session = await _authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      try {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('username, full_name')
+            .eq('id', session.user.id)
+            .single();
+        await PreferencesService().saveUserCache(
+          userId: session.user.id,
+          username: profile['username'] as String? ?? '',
+          fullName: profile['full_name'] as String? ?? '',
+          email: session.user.email ?? '',
+        );
+      } catch (_) {}
       if (mounted) {
         await _showSuccessAndNavigate();
       }
