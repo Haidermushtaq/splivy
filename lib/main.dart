@@ -9,6 +9,7 @@ import 'providers/auth_provider.dart';
 import 'providers/realtime_provider.dart';
 import 'providers/theme_provider.dart';
 import 'services/notification_service.dart';
+import 'services/reminder_service.dart';
 import 'utils/page_transitions.dart';
 import 'screens/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -25,6 +26,19 @@ import 'screens/settle/settle_up_screen.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
 
+void _handleNotificationTap(String? payload) {
+  final nav = _navigatorKey.currentState;
+  if (nav == null) return;
+  if (payload == 'settle_up') {
+    nav.pushNamed('/settle-up');
+  } else if (payload?.startsWith('group_') == true) {
+    // groupId only — group-detail needs groupName too; navigate to groups as fallback.
+    nav.pushNamed('/groups');
+  } else if (payload == 'friends') {
+    nav.pushNamed('/friends');
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: '.env');
@@ -32,7 +46,7 @@ void main() async {
     url: supabaseUrl,
     anonKey: supabaseAnonKey,
   );
-  await NotificationService().initialize();
+  await NotificationService().initialize(onTap: _handleNotificationTap);
   final prefs = await SharedPreferences.getInstance();
   final isDark = prefs.getBool('theme_mode') ?? true;
   runApp(
@@ -59,6 +73,9 @@ class FairShareApp extends ConsumerWidget {
         if (state.event == AuthChangeEvent.signedOut) {
           _navigatorKey.currentState
               ?.pushNamedAndRemoveUntil('/login', (r) => false);
+        }
+        if (state.event == AuthChangeEvent.signedIn) {
+          ReminderService().scheduleAllReminders();
         }
       });
     });

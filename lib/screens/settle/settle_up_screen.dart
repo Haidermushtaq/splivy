@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../models/expense_model.dart';
 import '../../services/expenses_service.dart';
 import '../../services/notification_service.dart';
+import '../../services/reminder_service.dart';
 import '../../widgets/lottie_widget.dart';
 
 final _settleUpProvider =
@@ -82,6 +83,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
       await ExpensesService()
           .settleExpense(debt.expenseId, _currentUserId);
       ref.invalidate(_settleUpProvider);
+      ReminderService().scheduleAllReminders();
       if (mounted) {
         await _showPaymentSuccessSheet(debt);
         NotificationService().showSettlementNotification(

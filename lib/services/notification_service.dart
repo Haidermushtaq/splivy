@@ -1,4 +1,7 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import '../models/expense_model.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._();
@@ -6,9 +9,11 @@ class NotificationService {
   NotificationService._();
 
   final _plugin = FlutterLocalNotificationsPlugin();
-  int _idCounter = 0;
 
-  Future<void> initialize() async {
+  Future<void> initialize({void Function(String? payload)? onTap}) async {
+    tz.initializeTimeZones();
+    tz.setLocalLocation(tz.getLocation('Asia/Karachi'));
+
     const androidSettings =
         AndroidInitializationSettings('@mipmap/ic_launcher');
     const iosSettings = DarwinInitializationSettings(
@@ -16,30 +21,65 @@ class NotificationService {
       requestBadgePermission: true,
       requestSoundPermission: true,
     );
+
     await _plugin.initialize(
       const InitializationSettings(android: androidSettings, iOS: iosSettings),
+      onDidReceiveNotificationResponse: (details) {
+        onTap?.call(details.payload);
+      },
+    );
+
+    final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+
+    await androidPlugin?.requestNotificationsPermission();
+
+    // Create both channels up front so they exist before any notification fires.
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'fairshare_channel',
+        'FairShare',
+        description: 'FairShare real-time expense notifications',
+        importance: Importance.high,
+      ),
+    );
+
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'fairshare_reminders',
+        'Payment Reminders',
+        description: 'Reminders for pending payments',
+        importance: Importance.high,
+        playSound: true,
+        enableVibration: true,
+      ),
     );
   }
+
+  // ── Immediate notifications ─────────────────────────────────────────────────
 
   Future<void> showExpenseNotification({
     required String groupName,
     required String expenseTitle,
     required double amount,
+    String? groupId,
   }) async {
     await _plugin.show(
-      _idCounter++,
+      DateTime.now().millisecondsSinceEpoch % 10000,
       'New expense in $groupName',
       '$expenseTitle • PKR ${amount.toStringAsFixed(0)}',
-      _details(),
+      _immediateDetails(),
+      payload: groupId != null ? 'group_$groupId' : null,
     );
   }
 
   Future<void> showFriendRequestNotification(String username) async {
     await _plugin.show(
-      _idCounter++,
-      'New friend request',
-      'New friend request from @$username',
-      _details(),
+      DateTime.now().millisecondsSinceEpoch % 10000,
+      'New Friend Request',
+      '@$username wants to connect with you on FairShare',
+      _immediateDetails(),
+      payload: 'friends',
     );
   }
 
@@ -48,14 +88,80 @@ class NotificationService {
     required double amount,
   }) async {
     await _plugin.show(
-      _idCounter++,
+      DateTime.now().millisecondsSinceEpoch % 10000,
       'Payment settled',
       '$name settled PKR ${amount.toStringAsFixed(0)} ✓',
-      _details(),
+      _immediateDetails(),
+      payload: 'settle_up',
     );
   }
 
-  NotificationDetails _details() {
+  // ── Scheduled notifications ─────────────────────────────────────────────────
+
+  Future<void> scheduleReminderNotification({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime scheduledDate,
+    String? payload,
+  }) async {
+    await _plugin.zonedSchedule(
+      id,
+      title,
+      body,
+      tz.TZDateTime.from(scheduledDate, tz.local),
+      _reminderDetails(body),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      uiLocalNotificationDateInterpretation:
+          UILocalNotificationDateInterpretation.absoluteTime,
+      payload: payload,
+    );
+  }
+
+  Future<void> cancelNotification(int id) => _plugin.cancel(id);
+
+  Future<void> cancelAllNotifications() => _plugin.cancelAll();
+
+  // ── Reminder batches ────────────────────────────────────────────────────────
+
+  Future<void> schedulePaymentReminders(
+      List<DebtItem> debts, int intervalHours) async {
+    int id = 1000;
+    for (final debt in debts) {
+      if (!debt.youOwe || id >= 1100) break;
+      await scheduleReminderNotification(
+        id: id++,
+        title: 'Payment Reminder',
+        body:
+            'You owe ${debt.name} PKR ${debt.amount.toStringAsFixed(0)} in ${debt.groupName}',
+        scheduledDate: DateTime.now().add(Duration(hours: intervalHours)),
+        payload: 'settle_up',
+      );
+    }
+  }
+
+  Future<void> scheduleOwedReminders(
+      List<DebtItem> debts, int intervalHours) async {
+    int id = 2000;
+    int offset = 0;
+    for (final debt in debts) {
+      if (debt.youOwe || id >= 2100) break;
+      await scheduleReminderNotification(
+        id: id++,
+        title: 'Someone Owes You',
+        body:
+            '${debt.name} owes you PKR ${debt.amount.toStringAsFixed(0)} in ${debt.groupName}',
+        scheduledDate: DateTime.now()
+            .add(Duration(hours: intervalHours, minutes: offset * 30)),
+        payload: 'settle_up',
+      );
+      offset++;
+    }
+  }
+
+  // ── Notification detail builders ────────────────────────────────────────────
+
+  NotificationDetails _immediateDetails() {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
         'fairshare_channel',
@@ -66,6 +172,21 @@ class NotificationService {
         icon: '@mipmap/ic_launcher',
       ),
       iOS: DarwinNotificationDetails(),
+    );
+  }
+
+  NotificationDetails _reminderDetails(String body) {
+    return NotificationDetails(
+      android: AndroidNotificationDetails(
+        'fairshare_reminders',
+        'Payment Reminders',
+        channelDescription: 'Reminders for pending payments',
+        importance: Importance.high,
+        priority: Priority.high,
+        icon: '@mipmap/ic_launcher',
+        styleInformation: BigTextStyleInformation(body),
+      ),
+      iOS: const DarwinNotificationDetails(),
     );
   }
 }
