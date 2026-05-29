@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../providers/friends_provider.dart';
+import '../../providers/groups_provider.dart';
 import '../../providers/theme_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/preferences_service.dart';
@@ -120,6 +122,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _buildStatsRow(Color cardColor) {
+    final groupsAsync = ref.watch(userGroupsProvider);
+    final friendsAsync = ref.watch(friendsListProvider);
+
+    final groupCount = groupsAsync.valueOrNull?.length ?? 0;
+    final friendCount = friendsAsync.valueOrNull?.length ?? 0;
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 24),
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -129,11 +137,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
       child: Row(
         children: [
-          _StatItem(label: 'Groups', value: '3'),
+          _StatItem(label: 'Groups', value: '$groupCount'),
           _vDivider(),
-          _StatItem(label: 'Friends', value: '4'),
+          _StatItem(label: 'Friends', value: '$friendCount'),
           _vDivider(),
-          _StatItem(label: 'Expenses', value: '12'),
+          const _StatItem(label: 'Version', value: '1.0'),
         ],
       ),
     );

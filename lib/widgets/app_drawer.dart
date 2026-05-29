@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/preferences_service.dart';
 
 class AppDrawer extends StatefulWidget {
   final String currentRoute;
@@ -81,32 +82,55 @@ class _AppDrawerState extends State<AppDrawer> {
         top: MediaQuery.of(context).padding.top + 20,
         bottom: 20,
       ),
-      child: const Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: Colors.black45,
-            child: Icon(Icons.person, color: Colors.white, size: 40),
-          ),
-          SizedBox(height: 12),
-          Text(
-            'Haider Mushtaq',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          Text(
-            '@haider_mushtaq',
-            style: TextStyle(color: Colors.white70, fontSize: 13),
-          ),
-          Text(
-            'haider@example.com',
-            style: TextStyle(color: Colors.white60, fontSize: 12),
-          ),
-        ],
+      child: Builder(
+        builder: (context) {
+          final cache = PreferencesService().getUserCache();
+          final fullName = cache['fullName']?.isNotEmpty == true
+              ? cache['fullName']!
+              : 'User';
+          final username = cache['username']?.isNotEmpty == true
+              ? '@${cache['username']}'
+              : '';
+          final email = cache['email'] ?? '';
+          final initial = fullName.isNotEmpty ? fullName[0].toUpperCase() : 'U';
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 36,
+                backgroundColor: Colors.black45,
+                child: Text(
+                  initial,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                fullName,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (username.isNotEmpty)
+                Text(
+                  username,
+                  style: const TextStyle(color: Colors.white70, fontSize: 13),
+                ),
+              if (email.isNotEmpty)
+                Text(
+                  email,
+                  style: const TextStyle(color: Colors.white60, fontSize: 12),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
