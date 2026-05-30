@@ -28,6 +28,18 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
         FriendsService().getSharedGroupNames(widget.friend.friendId);
   }
 
+  void _showBreakdown() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) => _BreakdownSheet(friend: widget.friend),
+    );
+  }
+
   Future<void> _removeFriend() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -171,39 +183,45 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
             Card(
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16)),
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    Icon(
-                      isSettled
-                          ? Icons.check_circle_outline
-                          : isOwed
-                              ? Icons.arrow_downward_rounded
-                              : Icons.arrow_upward_rounded,
-                      color: balanceColor,
-                      size: 32,
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(balanceLabel,
-                              style: TextStyle(
-                                  color: balanceColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15)),
-                          if (balanceText.isNotEmpty)
-                            Text(balanceText,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: isSettled ? null : _showBreakdown,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSettled
+                            ? Icons.check_circle_outline
+                            : isOwed
+                                ? Icons.arrow_downward_rounded
+                                : Icons.arrow_upward_rounded,
+                        color: balanceColor,
+                        size: 32,
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(balanceLabel,
                                 style: TextStyle(
                                     color: balanceColor,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold)),
-                        ],
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15)),
+                            if (balanceText.isNotEmpty)
+                              Text(balanceText,
+                                  style: TextStyle(
+                                      color: balanceColor,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold)),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
+                      if (!isSettled)
+                        const Icon(Icons.chevron_right, color: Colors.grey),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -275,6 +293,7 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
                     '/settle-up',
                     arguments: {'groupId': null},
                   ),
+
                   icon: const Icon(Icons.handshake_outlined,
                       color: Colors.black),
                   label: const Text(
@@ -293,6 +312,143 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Bottom sheet listing every unsettled expense between the user and a friend,
+/// split into what they owe and what the user owes, with a net total.
+class _BreakdownSheet extends StatelessWidget {
+  final Friend friend;
+  const _BreakdownSheet({required this.friend});
+
+  static const _accent = Color(0xFF00D4AA);
+  static const _red = Color(0xFFFF6B6B);
+
+  static String _formatDate(DateTime d) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    return '${months[d.month - 1]} ${d.day}, ${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return DraggableScrollableSheet(
+      expand: false,
+      initialChildSize: 0.6,
+      maxChildSize: 0.9,
+      minChildSize: 0.3,
+      builder: (context, scrollController) {
+        return FutureBuilder<List<FriendExpense>>(
+          future: FriendsService().getExpensesWithFriend(friend.friendId),
+          builder: (context, snap) {
+            if (snap.connectionState == ConnectionState.waiting) {
+              return const SizedBox(
+                height: 200,
+                child: Center(
+                    child: CircularProgressIndicator(
+                        color: _accent, strokeWidth: 2)),
+              );
+            }
+            final items = snap.data ?? [];
+            return ListView(
+              controller: scrollController,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.withValues(alpha: 0.4),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Text(
+                  'Expenses with ${friend.fullName}',
+                  style: TextStyle(
+                      color: onSurface,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 16),
+                if (items.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 24),
+                    child: Center(
+                      child: Text('No unsettled expenses',
+                          style:
+                              TextStyle(color: Colors.grey, fontSize: 14)),
+                    ),
+                  )
+                else
+                  ...items.map((e) => _row(context, e)),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _row(BuildContext context, FriendExpense e) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    final color = e.theyOweMe ? _accent : _red;
+    final label = e.theyOweMe ? 'Owes you' : 'You owe';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 18,
+            backgroundColor: color.withValues(alpha: 0.15),
+            child: Icon(
+              e.theyOweMe
+                  ? Icons.arrow_downward_rounded
+                  : Icons.arrow_upward_rounded,
+              color: color,
+              size: 18,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(e.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        color: onSurface,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(_formatDate(e.date),
+                    style:
+                        const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('PKR ${e.amount.toStringAsFixed(0)}',
+                  style: TextStyle(
+                      color: color,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold)),
+              Text(label,
+                  style: TextStyle(color: color, fontSize: 11)),
+            ],
+          ),
+        ],
       ),
     );
   }

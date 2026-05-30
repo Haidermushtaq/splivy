@@ -41,6 +41,25 @@ class Friend {
   });
 }
 
+/// A single unsettled expense between the current user and a friend.
+/// [theyOweMe] is true when the friend owes the current user for this expense,
+/// false when the current user owes the friend.
+class FriendExpense {
+  final String expenseId;
+  final String title;
+  final double amount;
+  final bool theyOweMe;
+  final DateTime date;
+
+  const FriendExpense({
+    required this.expenseId,
+    required this.title,
+    required this.amount,
+    required this.theyOweMe,
+    required this.date,
+  });
+}
+
 class PendingRequest {
   final String id;
   final String fromUserId;

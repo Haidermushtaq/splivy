@@ -146,6 +146,52 @@ class FriendsService {
   Future<double> getBalanceWithFriend(String friendId) =>
       _getBalanceWithUser(friendId);
 
+  /// Every unsettled expense between the current user and [otherUserId], both
+  /// directions, newest first. Powers the per-friend breakdown.
+  Future<List<FriendExpense>> getExpensesWithFriend(String otherUserId) async {
+    const embed = 'expenses!inner(title, created_at, is_archived)';
+    final List<FriendExpense> items = [];
+
+    final theyOweMe = await _client
+        .from('expense_splits')
+        .select('amount, expense_id, $embed')
+        .eq('owed_to', _userId)
+        .eq('user_id', otherUserId)
+        .eq('is_settled', false)
+        .eq('expenses.is_archived', false);
+    for (final s in theyOweMe as List) {
+      final e = s['expenses'] as Map;
+      items.add(FriendExpense(
+        expenseId: s['expense_id'] as String,
+        title: e['title'] as String,
+        amount: (s['amount'] as num).toDouble(),
+        theyOweMe: true,
+        date: DateTime.parse(e['created_at'] as String),
+      ));
+    }
+
+    final iOweThem = await _client
+        .from('expense_splits')
+        .select('amount, expense_id, $embed')
+        .eq('owed_to', otherUserId)
+        .eq('user_id', _userId)
+        .eq('is_settled', false)
+        .eq('expenses.is_archived', false);
+    for (final s in iOweThem as List) {
+      final e = s['expenses'] as Map;
+      items.add(FriendExpense(
+        expenseId: s['expense_id'] as String,
+        title: e['title'] as String,
+        amount: (s['amount'] as num).toDouble(),
+        theyOweMe: false,
+        date: DateTime.parse(e['created_at'] as String),
+      ));
+    }
+
+    items.sort((a, b) => b.date.compareTo(a.date));
+    return items;
+  }
+
   /// Net balance with [otherUserId] across *every* expense — group and
   /// one-time alike. Positive means they owe me, negative means I owe them.
   /// Offsetting debts in different expenses cancel out in the sum.
