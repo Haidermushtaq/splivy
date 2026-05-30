@@ -138,6 +138,69 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     }
   }
 
+  Future<void> _cancelPaymentClaim(DebtItem debt) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Cancel Payment?',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Text(
+          'This undoes your "paid" mark for PKR ${debt.amount.toStringAsFixed(0)} '
+          'to ${debt.name}. The debt goes back to unpaid. Use this if you '
+          'marked it by mistake or haven\'t actually paid yet.',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _orange,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Cancel Payment',
+                style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _paymentService.cancelPaymentClaim(
+          splitId: debt.splitId, isGuest: false);
+      ref.invalidate(_settleUpProvider);
+      ReminderService().scheduleAllReminders();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment mark cancelled. The debt is unpaid again.'),
+            backgroundColor: _orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to cancel: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _showDisputeDialog(DebtItem debt) async {
     final controller = TextEditingController();
     final confirmed = await showDialog<bool>(
@@ -737,7 +800,10 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
       if (debt.isPending) {
         return _actionButton(label: 'Pay Now', onTap: () => _openPaymentSheet(debt));
       } else if (debt.isPayerMarked) {
-        return _actionButton(label: 'Awaiting...', onTap: () {}, color: _orange);
+        return _actionButton(
+            label: 'Cancel',
+            onTap: () => _cancelPaymentClaim(debt),
+            color: _orange);
       } else if (debt.isDisputed) {
         return _actionButton(label: 'Retry Payment', onTap: () => _openPaymentSheet(debt), color: Colors.red);
       } else {

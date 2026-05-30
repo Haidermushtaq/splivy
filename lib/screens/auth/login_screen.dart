@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../providers/app_state_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/preferences_service.dart';
 import '../../widgets/lottie_widget.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -63,12 +65,24 @@ class _LoginScreenState extends State<LoginScreen> {
             .select('username, full_name')
             .eq('id', session.user.id)
             .single();
+        final username = profile['username'] as String? ?? '';
+        final fullName = profile['full_name'] as String? ?? '';
+        final email = session.user.email ?? '';
         await PreferencesService().saveUserCache(
           userId: session.user.id,
-          username: profile['username'] as String? ?? '',
-          fullName: profile['full_name'] as String? ?? '',
-          email: session.user.email ?? '',
+          username: username,
+          fullName: fullName,
+          email: email,
         );
+        // Push the freshly signed-in identity into global app state so the
+        // dashboard greeting and profile reflect this account immediately,
+        // instead of the previous user's cached values.
+        ref.read(appStateProvider.notifier).updateUser(
+              userId: session.user.id,
+              username: username,
+              fullName: fullName,
+              email: email,
+            );
       } catch (_) {}
       if (mounted) {
         await _showSuccessAndNavigate();
