@@ -1,8 +1,10 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/friend_model.dart';
+import 'expenses_service.dart';
 
 class FriendsService {
   final _client = Supabase.instance.client;
+  final _expenses = ExpensesService();
 
   String get _userId => _client.auth.currentUser!.id;
 
@@ -77,6 +79,13 @@ class FriendsService {
 
       if (profile == null) continue;
 
+      // Cancel any offsetting debts before reading the balance so stale
+      // pre-existing debts settle on refresh, not only when a new expense is
+      // added. Best-effort: never let netting break the friends list.
+      try {
+        await _expenses.autoNetWithUser(otherUserId);
+      } catch (_) {}
+
       final balance = await _getBalanceWithUser(otherUserId);
 
       result.add(Friend(
@@ -137,29 +146,20 @@ class FriendsService {
   Future<double> getBalanceWithFriend(String friendId) =>
       _getBalanceWithUser(friendId);
 
+  /// Net balance with [otherUserId] across *every* expense — group and
+  /// one-time alike. Positive means they owe me, negative means I owe them.
+  /// Offsetting debts in different expenses cancel out in the sum.
   Future<double> _getBalanceWithUser(String otherUserId) async {
-    final sharedGroups = await _getSharedGroupIds(otherUserId);
-    if (sharedGroups.isEmpty) return 0;
-
-    final expenseRows = await _client
-        .from('expenses')
-        .select('id')
-        .inFilter('group_id', sharedGroups)
-        .eq('is_archived', false);
-    final expenseIds =
-        (expenseRows as List).map((e) => e['id'] as String).toList();
-    if (expenseIds.isEmpty) return 0;
-
     double balance = 0;
 
     // They owe me.
     final theyOweMe = await _client
         .from('expense_splits')
-        .select('amount')
+        .select('amount, expenses!inner(is_archived)')
         .eq('owed_to', _userId)
         .eq('user_id', otherUserId)
         .eq('is_settled', false)
-        .inFilter('expense_id', expenseIds);
+        .eq('expenses.is_archived', false);
     for (final s in theyOweMe as List) {
       balance += (s['amount'] as num).toDouble();
     }
@@ -167,11 +167,11 @@ class FriendsService {
     // I owe them.
     final iOweThem = await _client
         .from('expense_splits')
-        .select('amount')
+        .select('amount, expenses!inner(is_archived)')
         .eq('owed_to', otherUserId)
         .eq('user_id', _userId)
         .eq('is_settled', false)
-        .inFilter('expense_id', expenseIds);
+        .eq('expenses.is_archived', false);
     for (final s in iOweThem as List) {
       balance -= (s['amount'] as num).toDouble();
     }

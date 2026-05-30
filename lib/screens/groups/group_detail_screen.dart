@@ -5,6 +5,7 @@ import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/realtime_provider.dart';
+import '../../services/groups_service.dart';
 import '../../services/notification_service.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
@@ -272,17 +273,119 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
   }
 
   Widget _buildAddMemberButton() {
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 26,
-          backgroundColor: Theme.of(context).cardColor,
-          child: const Icon(Icons.add, color: _accent, size: 24),
+    return GestureDetector(
+      onTap: _showAddMemberDialog,
+      child: Column(
+        children: [
+          CircleAvatar(
+            radius: 26,
+            backgroundColor: Theme.of(context).cardColor,
+            child: const Icon(Icons.add, color: _accent, size: 24),
+          ),
+          const SizedBox(height: 6),
+          const Text('Add',
+              style: TextStyle(color: Colors.grey, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+
+  void _showAddMemberDialog() {
+    final controller = TextEditingController();
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    bool adding = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          backgroundColor: cardColor,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Add Member',
+              style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the username of a registered user.',
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                style: TextStyle(color: onSurface),
+                decoration: InputDecoration(
+                  prefixText: '@',
+                  prefixStyle: const TextStyle(color: _accent),
+                  hintText: 'username',
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: Colors.white24),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: const BorderSide(color: _accent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: adding ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _accent,
+                shape:
+                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: adding
+                  ? null
+                  : () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      setDialog(() => adding = true);
+                      try {
+                        final member = await GroupsService()
+                            .addMemberByUsername(
+                                widget.groupId, controller.text);
+                        ref.invalidate(groupDetailProvider(widget.groupId));
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                        messenger.showSnackBar(SnackBar(
+                          content: Text('${member.fullName} added to group'),
+                          backgroundColor: _accent,
+                          behavior: SnackBarBehavior.floating,
+                        ));
+                      } catch (e) {
+                        setDialog(() => adding = false);
+                        messenger.showSnackBar(SnackBar(
+                          content: Text(
+                              e.toString().replaceFirst('Exception: ', '')),
+                          backgroundColor: _red,
+                          behavior: SnackBarBehavior.floating,
+                        ));
+                      }
+                    },
+              child: adding
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.black),
+                    )
+                  : const Text('Add',
+                      style: TextStyle(
+                          color: Colors.black, fontWeight: FontWeight.bold)),
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        const Text('Add',
-            style: TextStyle(color: Colors.grey, fontSize: 11)),
-      ],
+      ),
     );
   }
 

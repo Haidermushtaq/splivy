@@ -7,6 +7,7 @@ import '../../services/payment_service.dart';
 import '../../services/reminder_service.dart';
 import '../../widgets/lottie_widget.dart';
 import '../../widgets/payment_bottom_sheet.dart';
+import '../../utils/balance_text.dart';
 
 final _settleUpProvider =
     FutureProvider<List<DebtItem>>((ref) async {
@@ -277,15 +278,50 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
       BuildContext context, GuestSplit guest, String expenseTitle) async {
     final rawPhone = guest.guestPhone;
     final waPhone = '92${rawPhone.substring(1)}';
-    final msg = Uri.encodeComponent(
-      'Hi ${guest.guestName}, you owe PKR ${guest.amount.toStringAsFixed(0)} for "$expenseTitle". Please settle up! – FairShare',
-    );
+    final amt = guest.amount.abs().toStringAsFixed(0);
+    final body = guest.amount >= 0
+        ? 'Hi ${guest.guestName}, you owe PKR $amt for "$expenseTitle". Please settle up! – FairShare'
+        : 'Hi ${guest.guestName}, I owe you PKR $amt for "$expenseTitle". Let me know how to pay you. – FairShare';
+    final msg = Uri.encodeComponent(body);
     final url = Uri.parse('https://wa.me/$waPhone?text=$msg');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Could not open WhatsApp'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _openGuestPaymentSheet(
+      GuestSplit guest, String expenseTitle) async {
+    await showPaymentBottomSheet(
+      context,
+      splitId: guest.id,
+      amount: guest.amount.abs(),
+      payerName: 'You',
+      receiverName: guest.guestName,
+      receiverPhone: guest.guestPhone,
+      expenseTitle: expenseTitle,
+      isGuest: true,
+      isCurrentUserPayer: true,
+      onComplete: () => ref.invalidate(_guestSplitsProvider),
+    );
+  }
+
+  Future<void> _markGuestGuestSettled(GuestGuestDebt debt) async {
+    try {
+      await ExpensesService().settleGuestGuestDebt(debt.id);
+      ref.invalidate(_guestSplitsProvider);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
@@ -365,13 +401,22 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
 
           final pendingGuests = guestAsync.value
                   ?.expand((detail) => detail.guests
-                      .where((g) => !g.isSettled)
+                      .where((g) => !g.isSettled && g.amount.abs() > 0.01)
                       .map((g) => (detail: detail, guest: g)))
                   .toList() ??
               [];
 
-          final allSettled =
-              youOwe.isEmpty && owesYou.isEmpty && pendingGuests.isEmpty;
+          final guestGuestDebts = guestAsync.value
+                  ?.expand((detail) => detail.guestGuestDebts
+                      .where((d) => !d.isSettled)
+                      .map((d) => (detail: detail, debt: d)))
+                  .toList() ??
+              [];
+
+          final allSettled = youOwe.isEmpty &&
+              owesYou.isEmpty &&
+              pendingGuests.isEmpty &&
+              guestGuestDebts.isEmpty;
 
           return RefreshIndicator(
             onRefresh: () async {
@@ -380,7 +425,8 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
             },
             child: allSettled
                 ? _buildAllSettled()
-                : _buildContent(youOwe, owesYou, pendingGuests),
+                : _buildContent(
+                    youOwe, owesYou, pendingGuests, guestGuestDebts),
           );
         },
       ),
@@ -391,6 +437,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
     List<DebtItem> youOwe,
     List<DebtItem> owesYou,
     List<({CustomExpenseDetail detail, GuestSplit guest})> pendingGuests,
+    List<({CustomExpenseDetail detail, GuestGuestDebt debt})> guestGuestDebts,
   ) {
     final totalToSettle =
         youOwe.fold(0.0, (sum, d) => sum + d.amount);
@@ -423,8 +470,83 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
               (entry) => _buildGuestDebtCard(entry.guest, entry.detail.expense.title),
             ),
           ],
+          if (guestGuestDebts.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            _sectionHeader('Between Others (tracking)', Colors.amber),
+            const SizedBox(height: 6),
+            const Text(
+              'Debts between people who aren’t on the app. '
+              'You’re keeping the record.',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 10),
+            ...guestGuestDebts.map(
+              (entry) =>
+                  _buildGuestGuestCard(entry.debt, entry.detail.expense.title),
+            ),
+          ],
           const SizedBox(height: 24),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGuestGuestCard(GuestGuestDebt debt, String expenseTitle) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: Colors.amber.withValues(alpha: 0.2),
+              child: const Icon(Icons.swap_horiz_rounded,
+                  color: Colors.amber, size: 20),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '${debt.debtorName} owes ${debt.creditorName}',
+                    style: TextStyle(
+                      color: onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    expenseTitle,
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  'PKR ${debt.amount.toStringAsFixed(0)}',
+                  style: const TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                _actionButton(
+                  label: 'Mark Settled',
+                  onTap: () => _markGuestGuestSettled(debt),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -663,6 +785,7 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
 
   Widget _buildGuestDebtCard(GuestSplit guest, String expenseTitle) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final iOweGuest = guest.amount < 0;
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       shape: RoundedRectangleBorder(
@@ -710,9 +833,13 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  'PKR ${guest.amount.toStringAsFixed(0)}',
-                  style: const TextStyle(
-                    color: Colors.amber,
+                  iOweGuest ? 'You owe' : 'Owes you',
+                  style: const TextStyle(color: Colors.grey, fontSize: 10),
+                ),
+                Text(
+                  'PKR ${guest.amount.abs().toStringAsFixed(0)}',
+                  style: TextStyle(
+                    color: BalanceText.color(guest.amount),
                     fontWeight: FontWeight.bold,
                     fontSize: 14,
                   ),
@@ -727,10 +854,17 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
                       color: const Color(0xFF25D366),
                     ),
                     const SizedBox(width: 6),
-                    _actionButton(
-                      label: 'Mark Paid',
-                      onTap: () => _markGuestPaid(guest),
-                    ),
+                    if (iOweGuest)
+                      _actionButton(
+                        label: 'Pay Now',
+                        onTap: () =>
+                            _openGuestPaymentSheet(guest, expenseTitle),
+                      )
+                    else
+                      _actionButton(
+                        label: 'Mark Paid',
+                        onTap: () => _markGuestPaid(guest),
+                      ),
                   ],
                 ),
               ],

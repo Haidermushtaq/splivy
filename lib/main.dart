@@ -24,6 +24,8 @@ import 'screens/expenses/add_expense_screen.dart';
 import 'screens/friends/friends_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/expenses/custom_expenses_screen.dart';
+import 'screens/expenses/one_time_expense_screen.dart';
+import 'screens/expenses/archived_expenses_screen.dart';
 import 'screens/settle/settle_up_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 
@@ -163,6 +165,10 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
       );
     case '/custom-expenses':
       return slideRoute(const CustomExpensesScreen(), settings);
+    case '/add-one-time':
+      return slideRoute(const OneTimeExpenseScreen(), settings);
+    case '/archived-expenses':
+      return slideRoute(const ArchivedExpensesScreen(), settings);
     default:
       return slideRoute(const SplashScreen(), settings);
   }

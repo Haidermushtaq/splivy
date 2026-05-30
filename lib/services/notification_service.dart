@@ -96,6 +96,19 @@ class NotificationService {
     );
   }
 
+  Future<void> showAutoNetNotification({
+    required String name,
+    required double amount,
+  }) async {
+    await _plugin.show(
+      DateTime.now().millisecondsSinceEpoch % 10000,
+      'Debts auto-settled 🔄',
+      'PKR ${amount.toStringAsFixed(0)} with $name cancelled out from offsetting expenses.',
+      _immediateDetails(),
+      payload: 'settle_up',
+    );
+  }
+
   Future<void> showPaymentReceivedNotification({
     required String payerName,
     required double amount,

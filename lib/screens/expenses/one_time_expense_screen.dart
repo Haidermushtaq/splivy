@@ -2,33 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../models/group_model.dart';
-import '../../models/friend_model.dart';
 import '../../models/expense_model.dart';
-import '../../providers/groups_provider.dart';
+import '../../models/friend_model.dart';
 import '../../providers/friends_provider.dart';
 import '../../services/expenses_service.dart';
 
-/// A registered participant: the current user, a group member, or a connected
-/// friend added on top of the group.
+/// A registered participant (the current user or a connected friend).
 class _Participant {
   final String id;
   final String name;
   final bool isYou;
-
-  /// Friends added on top of the group's own members can be removed again.
-  /// Group members are not removable.
-  final bool removable;
   final TextEditingController paidController = TextEditingController(text: '0');
   final TextEditingController owedController = TextEditingController(text: '0');
   bool includedInSplit = true;
 
-  _Participant({
-    required this.id,
-    required this.name,
-    this.isYou = false,
-    this.removable = false,
-  });
+  _Participant({required this.id, required this.name, this.isYou = false});
 
   double get paidAmount => double.tryParse(paidController.text) ?? 0;
   double get owedAmount => double.tryParse(owedController.text) ?? 0;
@@ -71,21 +59,15 @@ const _categories = [
   _Category('Other', Icons.category_outlined),
 ];
 
-class AddExpenseScreen extends ConsumerStatefulWidget {
-  final String groupId;
-  final String groupName;
-
-  const AddExpenseScreen({
-    super.key,
-    required this.groupId,
-    required this.groupName,
-  });
+class OneTimeExpenseScreen extends ConsumerStatefulWidget {
+  const OneTimeExpenseScreen({super.key});
 
   @override
-  ConsumerState<AddExpenseScreen> createState() => _AddExpenseScreenState();
+  ConsumerState<OneTimeExpenseScreen> createState() =>
+      _OneTimeExpenseScreenState();
 }
 
-class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
+class _OneTimeExpenseScreenState extends ConsumerState<OneTimeExpenseScreen> {
   static const _accent = Color(0xFF00D4AA);
   static const _cardColor = Color(0xFF0F3460);
   static const _red = Color(0xFFFF6B6B);
@@ -94,17 +76,15 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   final _titleController = TextEditingController();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
-  final _scrollController = ScrollController();
 
   String _selectedCategory = 'Food';
   bool _isMultiPayer = false;
   bool _isCustomSplit = false;
   int _selectedPayerIndex = 0;
   bool _isLoading = false;
+  bool _summaryExpanded = true;
   String _payerErrorMessage = '';
   String _splitErrorMessage = '';
-  bool _summaryExpanded = true;
-  bool _membersInitialized = false;
 
   final List<_Participant> _participants = [];
   final List<_GuestEntry> _guests = [];
@@ -116,7 +96,9 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   double get _guestTotal => _guests.fold(0.0, (s, g) => s + g.amount);
 
-  double get _guestPaidTotal => _guests.fold(0.0, (s, g) => s + g.paidAmount);
+  double get _guestPaidTotal =>
+      _guests.fold(0.0, (s, g) => s + g.paidAmount);
+
 
   double get _totalPaid =>
       _participants.fold(0.0, (s, p) => s + p.paidAmount) + _guestPaidTotal;
@@ -131,11 +113,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
   int get _splitCount => _registeredSplitCount + _guests.length;
 
   @override
+  void initState() {
+    super.initState();
+    _participants.add(_Participant(id: _currentUserId, name: 'You', isYou: true));
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     _amountController.dispose();
     _noteController.dispose();
-    _scrollController.dispose();
     for (final p in _participants) {
       p.dispose();
     }
@@ -143,24 +130,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
       g.dispose();
     }
     super.dispose();
-  }
-
-  void _initMembers(List<GroupMember> members) {
-    if (_membersInitialized) return;
-    _membersInitialized = true;
-
-    _participants.addAll(members.map((m) {
-      final isYou = m.id == _currentUserId;
-      return _Participant(
-        id: m.id,
-        name: isYou ? 'You' : m.fullName,
-        isYou: isYou,
-      );
-    }));
-
-    _selectedPayerIndex =
-        _participants.indexWhere((p) => p.id == _currentUserId);
-    if (_selectedPayerIndex < 0) _selectedPayerIndex = 0;
   }
 
   void _recompute() {
@@ -320,27 +289,22 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
     setState(() => _isLoading = true);
     try {
-      await ExpensesService().addExpenseV2(
-        groupId: widget.groupId,
+      await ExpensesService().addOneTimeExpense(
         title: _titleController.text.trim(),
         totalAmount: _totalAmount,
         isMultiPayer: _isMultiPayer,
-        singlePayerId:
-            _isMultiPayer ? null : _participants[_selectedPayerIndex].id,
         payerAmounts: _isMultiPayer ? payerAmounts : [],
         splitAmounts: splitAmounts,
-        isEqualSplit: !_isCustomSplit,
         category: _selectedCategory,
         note: _noteController.text.trim().isEmpty
             ? null
             : _noteController.text.trim(),
-        isCustom: false,
         guestSplits: guestInputs,
       );
       if (mounted) {
-        _showSnackBar('Expense added!', isSuccess: true);
+        _showSnackBar('One-time expense added!', isSuccess: true);
         Future.delayed(const Duration(milliseconds: 600), () {
-          if (mounted) Navigator.of(context).pop();
+          if (mounted) Navigator.of(context).pop(true);
         });
       }
     } catch (e) {
@@ -427,22 +391,16 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   void _addFriend(Friend f) {
     setState(() {
-      _participants
-          .add(_Participant(id: f.friendId, name: f.fullName, removable: true));
+      _participants.add(_Participant(id: f.friendId, name: f.fullName));
       _recompute();
     });
   }
 
   void _removeParticipant(_Participant p) {
     setState(() {
-      final removedIndex = _participants.indexOf(p);
       _participants.remove(p);
       p.dispose();
-      if (_selectedPayerIndex >= _participants.length) {
-        _selectedPayerIndex = 0;
-      } else if (removedIndex < _selectedPayerIndex) {
-        _selectedPayerIndex--;
-      }
+      if (_selectedPayerIndex >= _participants.length) _selectedPayerIndex = 0;
       _recompute();
     });
   }
@@ -480,16 +438,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: _accent, width: 1.5),
       ),
-      errorStyle: const TextStyle(
-          color: _red, fontSize: 12, fontWeight: FontWeight.w500),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _red, width: 1.5),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: _red, width: 2),
-      ),
+      errorStyle:
+          const TextStyle(color: _red, fontSize: 12, fontWeight: FontWeight.w500),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );
   }
@@ -504,70 +454,52 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final detailAsync = ref.watch(groupDetailProvider(widget.groupId));
     final onSurface = Theme.of(context).colorScheme.onSurface;
 
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text('Add Expense'),
+        title: const Text('One-time Expense'),
         actions: [
-          detailAsync.when(
-            data: (_) => IconButton(
-              icon: const Icon(Icons.check_rounded, color: _accent),
-              onPressed: _isLoading ? null : _onSubmit,
-            ),
-            loading: () => const SizedBox.shrink(),
-            error: (e, s) => const SizedBox.shrink(),
+          IconButton(
+            icon: const Icon(Icons.check_rounded, color: _accent),
+            onPressed: _isLoading ? null : _onSubmit,
           ),
         ],
       ),
-      body: detailAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(
-          child: Text('Error loading group: $e',
-              style: const TextStyle(color: Colors.grey)),
-        ),
-        data: (detail) {
-          _initMembers(detail.members);
-
-          return GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: Form(
-              key: _formKey,
-              autovalidateMode: AutovalidateMode.onUserInteraction,
-              child: SingleChildScrollView(
-                controller: _scrollController,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildExpenseDetailsSection(onSurface),
-                    const SizedBox(height: 24),
-                    _buildPeopleSection(onSurface),
-                    const SizedBox(height: 24),
-                    _buildWhoPaidSection(onSurface),
-                    const SizedBox(height: 24),
-                    _buildSplitSection(onSurface),
-                    const SizedBox(height: 24),
-                    _buildSettlementPreview(onSurface),
-                    const SizedBox(height: 24),
-                    _buildNoteSection(onSurface),
-                    const SizedBox(height: 32),
-                    _buildSubmitButton(),
-                    const SizedBox(height: 24),
-                  ],
-                ),
-              ),
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: Form(
+          key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildDetailsSection(onSurface),
+                const SizedBox(height: 24),
+                _buildPeopleSection(onSurface),
+                const SizedBox(height: 24),
+                _buildWhoPaidSection(onSurface),
+                const SizedBox(height: 24),
+                _buildSplitSection(onSurface),
+                const SizedBox(height: 24),
+                _buildSettlementPreview(onSurface),
+                const SizedBox(height: 24),
+                _buildNoteSection(onSurface),
+                const SizedBox(height: 32),
+                _buildSubmitButton(),
+                const SizedBox(height: 24),
+              ],
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildExpenseDetailsSection(Color onSurface) {
+  Widget _buildDetailsSection(Color onSurface) {
     final cardColor = Theme.of(context).cardColor;
     final fillColor =
         Theme.of(context).inputDecorationTheme.fillColor ?? _cardColor;
@@ -668,10 +600,11 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         _sectionLabel("Who's involved?"),
         const SizedBox(height: 4),
         const Text(
-          'Group members are added automatically. Add more friends or one-time guests.',
+          'Add connected friends or one-time guests (name + phone).',
           style: TextStyle(color: Colors.grey, fontSize: 11),
         ),
         const SizedBox(height: 12),
+        // Registered participants
         Container(
           decoration: BoxDecoration(
               color: cardColor, borderRadius: BorderRadius.circular(12)),
@@ -698,21 +631,22 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                       child: Text(p.name,
                           style: TextStyle(color: onSurface, fontSize: 14)),
                     ),
-                    if (p.removable)
+                    if (p.isYou)
+                      const Text('Payer by default',
+                          style: TextStyle(color: Colors.grey, fontSize: 11))
+                    else
                       GestureDetector(
                         onTap: () => _removeParticipant(p),
                         child: const Icon(Icons.close,
                             color: Colors.grey, size: 18),
-                      )
-                    else
-                      const Text('Member',
-                          style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      ),
                   ],
                 ),
               );
             }).toList(),
           ),
         ),
+        // Guests
         if (_guests.isNotEmpty) ...[
           const SizedBox(height: 12),
           ...List.generate(_guests.length, (i) {
@@ -917,12 +851,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
             },
           ),
         ),
-        if (_selectedPayerIndex >= 0 &&
-            _selectedPayerIndex < _participants.length)
-          Text(
-            'Paying: ${_participants[_selectedPayerIndex].name}',
-            style: const TextStyle(color: Colors.grey, fontSize: 12),
-          ),
       ],
     );
   }
@@ -1000,9 +928,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     }
     for (var i = 0; i < _guests.length; i++) {
       final g = _guests[i];
-      final label = g.nameCtrl.text.trim().isEmpty
-          ? 'Guest ${i + 1}'
-          : g.nameCtrl.text.trim();
+      final label =
+          g.nameCtrl.text.trim().isEmpty ? 'Guest ${i + 1}' : g.nameCtrl.text.trim();
       rows.add(paidRow(
         name: '$label (guest)',
         avatarColor: Colors.amber,
@@ -1032,7 +959,10 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
           ),
         ),
         const SizedBox(height: 12),
-        _buildTotalCard(label: 'Total Paid', assigned: _totalPaid),
+        _buildTotalCard(
+          label: 'Total Paid',
+          assigned: _totalPaid,
+        ),
         if (_payerErrorMessage.isNotEmpty) ...[
           const SizedBox(height: 8),
           Text(_payerErrorMessage,
@@ -1254,7 +1184,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
 
   Widget _buildSettlementPreview(Color onSurface) {
     final settlements = _calculateSettlements();
-
     return Container(
       decoration: BoxDecoration(
           color: Theme.of(context).cardColor,
@@ -1298,19 +1227,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                               padding: const EdgeInsets.only(bottom: 8),
                               child: Row(
                                 children: [
-                                  CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor:
-                                        _red.withValues(alpha: 0.2),
-                                    child: Text(
-                                      (s['fromName'] as String)[0],
-                                      style: const TextStyle(
-                                          color: _red,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
                                   Text(s['fromName'] as String,
                                       style: TextStyle(
                                           color: onSurface, fontSize: 12)),
@@ -1318,19 +1234,6 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                                   const Icon(Icons.arrow_forward,
                                       color: Colors.grey, size: 14),
                                   const SizedBox(width: 8),
-                                  CircleAvatar(
-                                    radius: 12,
-                                    backgroundColor:
-                                        _accent.withValues(alpha: 0.2),
-                                    child: Text(
-                                      (s['toName'] as String)[0],
-                                      style: const TextStyle(
-                                          color: _accent,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
                                   Text(s['toName'] as String,
                                       style: TextStyle(
                                           color: onSurface, fontSize: 12)),

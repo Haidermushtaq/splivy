@@ -25,8 +25,11 @@ class PaymentStatus {
   static const String cashSettled = 'cash_settled';
   static const String disputed = 'disputed';
 
+  /// Auto-cancelled against an offsetting debt with the same person.
+  static const String netted = 'netted';
+
   static bool isSettled(String status) =>
-      status == confirmed || status == cashSettled;
+      status == confirmed || status == cashSettled || status == netted;
 
   static String getDisplayText(String status) {
     switch (status) {
@@ -38,6 +41,8 @@ class PaymentStatus {
         return 'Confirmed';
       case cashSettled:
         return 'Cash Settled';
+      case netted:
+        return 'Auto-settled';
       case disputed:
         return 'Disputed';
       default:
@@ -53,6 +58,7 @@ class PaymentStatus {
         return Colors.orange;
       case confirmed:
       case cashSettled:
+      case netted:
         return const Color(0xFF00D4AA);
       case disputed:
         return Colors.red;
