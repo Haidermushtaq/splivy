@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/friends_provider.dart';
 import '../../providers/groups_provider.dart';
@@ -18,6 +23,8 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   static const _accent = Color(0xFF00D4AA);
+
+  bool isUploadingAvatar = false;
 
   void _toggleTheme(bool isDark) {
     ref.read(themeProvider.notifier).setTheme(
@@ -73,33 +80,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final fullName = fullNameRaw.isNotEmpty ? fullNameRaw : 'User';
     final username = usernameRaw.isNotEmpty ? '@$usernameRaw' : '';
     final email = emailRaw;
+    final avatarUrl = (dbProfile?['avatar_url'] as String?);
 
     return Column(
       children: [
         Stack(
           children: [
             CircleAvatar(
-              radius: 52,
-              backgroundColor: _accent,
-              child: const Icon(Icons.person, color: Colors.black, size: 56),
+              radius: 50,
+              backgroundColor: const Color(0xFF0F3460),
+              backgroundImage: (avatarUrl != null && avatarUrl.isNotEmpty)
+                  ? NetworkImage(avatarUrl)
+                  : null,
+              child: (avatarUrl == null || avatarUrl.isEmpty)
+                  ? const Icon(Icons.person, color: Colors.white, size: 56)
+                  : null,
             ),
+            if (isUploadingAvatar)
+              Positioned.fill(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: CircularProgressIndicator(color: _accent),
+                  ),
+                ),
+              ),
             Positioned(
               bottom: 0,
               right: 0,
               child: GestureDetector(
-                onTap: _showEditProfile,
+                onTap: isUploadingAvatar ? null : _pickAndUploadAvatar,
                 child: Container(
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
+                    color: _accent,
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        width: 2),
+                        color: const Color(0xFF1A1A2E), width: 2),
                   ),
-                  child:
-                      Icon(Icons.edit_outlined, color: cs.onSurface, size: 16),
+                  child: const Icon(Icons.camera_alt,
+                      color: Colors.black, size: 16),
                 ),
               ),
             ),
@@ -205,6 +229,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       child: Column(
         children: [
           _SettingsTile(
+            icon: Icons.edit_outlined,
+            label: 'Edit Profile',
+            onTap: _showEditProfile,
+          ),
+          const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
+          _SettingsTile(
             icon: Icons.notifications_outlined,
             label: 'Reminder Settings',
             onTap: _showReminderSheet,
@@ -214,6 +244,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             icon: Icons.lock_outline,
             label: 'Change Password',
             onTap: _handleChangePassword,
+          ),
+          const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
+          _SettingsTile(
+            icon: Icons.archive_outlined,
+            label: 'Archived Expenses',
+            onTap: () =>
+                Navigator.of(context).pushNamed('/archived-expenses'),
           ),
           const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
           _SettingsTile(
@@ -471,6 +508,50 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Future<void> _pickAndUploadAvatar() async {
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 512,
+        maxHeight: 512,
+        imageQuality: 80,
+      );
+      if (picked == null) return;
+
+      setState(() => isUploadingAvatar = true);
+
+      final supabase = Supabase.instance.client;
+      final userId = supabase.auth.currentUser!.id;
+      final path = 'avatar_$userId.jpg';
+      final bytes = await File(picked.path).readAsBytes();
+
+      await supabase.storage.from('payment-proofs').uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
+          );
+      final publicUrl =
+          supabase.storage.from('payment-proofs').getPublicUrl(path);
+
+      await supabase
+          .from('profiles')
+          .update({'avatar_url': publicUrl}).eq('id', userId);
+
+      ref.invalidate(myProfileProvider);
+      if (!mounted) return;
+      setState(() => isUploadingAvatar = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile picture updated! ✅')),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => isUploadingAvatar = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to upload photo. Try again.')),
+      );
+    }
+  }
+
   Future<void> _showEditProfile() async {
     final profile = ref.read(myProfileProvider).valueOrNull;
     final cache = PreferencesService().getUserCache();
@@ -589,60 +670,69 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   void _showAboutDialog() {
     final cardColor = Theme.of(context).cardColor;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.account_balance_wallet_rounded,
-                color: _accent, size: 24),
-            const SizedBox(width: 10),
-            Text('FairShare',
-                style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
-          ],
+        title: const Text(
+          'About FairShare',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text('Version 1.0.0',
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
-            const SizedBox(height: 16),
-            Text('Built by',
-                style: TextStyle(
-                    color: onSurface,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13)),
+            const Icon(Icons.account_balance_wallet,
+                color: _accent, size: 48),
             const SizedBox(height: 8),
+            const Text(
+              'FairShare',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold),
+            ),
+            const Text('v1.0.0',
+                style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const SizedBox(height: 4),
+            const Text(
+              'Split smart. Settle easy.',
+              style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                  fontStyle: FontStyle.italic),
+            ),
+            const Divider(color: Colors.white12, height: 24),
+            const Text(
+              'Built with ❤️ in Pakistan 🇵🇰',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Developed by:',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold),
+              ),
+            ),
             ...['Haider Mushtaq', 'Mohsin Ashraf', 'Shumail Khan', 'Haider Zahoor']
-                .map((name) => Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.person_outline,
-                              color: _accent, size: 14),
-                          const SizedBox(width: 6),
-                          Text(name,
-                              style: TextStyle(color: onSurface, fontSize: 13)),
-                        ],
+                .map((name) => Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '• $name',
+                        style: const TextStyle(color: Colors.grey, fontSize: 12),
                       ),
                     )),
           ],
         ),
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
+          TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close',
-                style:
-                    TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text('Close', style: TextStyle(color: _accent)),
           ),
         ],
       ),
@@ -696,39 +786,73 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Need a hand with FairShare?',
-              style: TextStyle(color: onSurface, fontSize: 14),
-            ),
-            const SizedBox(height: 12),
-            const Row(
-              children: [
-                Icon(Icons.email_outlined, color: _accent, size: 16),
+            Row(
+              children: const [
+                Icon(Icons.email_outlined, color: _accent, size: 18),
                 SizedBox(width: 8),
-                Expanded(
-                  child: Text('support@fairshare.app',
-                      style: TextStyle(color: Colors.grey, fontSize: 13)),
-                ),
+                Text('Email Us',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
               ],
             ),
-            const SizedBox(height: 8),
-            const Text(
-              'Email us with your question and the group involved, and we\'ll get back to you within 24 hours.',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 26),
+              child: GestureDetector(
+                onTap: () => launchUrl(
+                    Uri.parse('mailto:fairsharee.support@gmail.com')),
+                child: const Text('fairsharee.support@gmail.com',
+                    style: TextStyle(color: _accent, fontSize: 13)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: const [
+                Icon(Icons.bug_report_outlined, color: _accent, size: 18),
+                SizedBox(width: 8),
+                Text('Report a Bug',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 26),
+              child: GestureDetector(
+                onTap: () => launchUrl(
+                    Uri.parse('https://github.com/Haidermushtaq/fairshare/issues')),
+                child: const Text('github.com/Haidermushtaq/fairshare',
+                    style: TextStyle(color: _accent, fontSize: 13)),
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: const [
+                Icon(Icons.schedule_outlined, color: _accent, size: 18),
+                SizedBox(width: 8),
+                Text('Response Time',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            const Padding(
+              padding: EdgeInsets.only(left: 26),
+              child: Text('We typically respond within 24 hours.',
+                  style: TextStyle(color: Colors.grey, fontSize: 12)),
             ),
           ],
         ),
         actions: [
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _accent,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
+          TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Close',
-                style:
-                    TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+            child: const Text('Close', style: TextStyle(color: _accent)),
           ),
         ],
       ),

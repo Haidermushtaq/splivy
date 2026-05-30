@@ -22,3 +22,15 @@ final groupExpensesProvider =
 final userBalanceProvider = FutureProvider<UserBalance>((ref) {
   return ref.read(expensesServiceProvider).getUserTotalBalance();
 });
+
+/// Recent expenses the current user is part of, newest first (max 20).
+/// Updates when: manually invalidated (e.g. dashboard refresh button).
+final recentExpensesProvider = FutureProvider<List<RecentExpense>>((ref) {
+  return ref.read(expensesServiceProvider).getRecentExpenses();
+});
+
+/// Archived (settled) expenses the current user is part of.
+/// Updates when: manually invalidated (e.g. after unarchiving).
+final archivedExpensesProvider = FutureProvider<List<RecentExpense>>((ref) {
+  return ref.read(expensesServiceProvider).getArchivedExpenses();
+});

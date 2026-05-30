@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/expense_model.dart';
 import '../../services/expenses_service.dart';
+import '../../utils/balance_text.dart';
+import '../../widgets/payment_bottom_sheet.dart';
+import 'one_time_expense_detail_screen.dart';
 
 final _customExpensesProvider =
     FutureProvider<List<CustomExpenseDetail>>((ref) {
@@ -22,6 +25,17 @@ class CustomExpensesScreen extends ConsumerWidget {
       appBar: AppBar(
         elevation: 0,
         title: const Text('One-time Expenses'),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: _accent,
+        onPressed: () async {
+          final created = await Navigator.of(context)
+              .pushNamed('/add-one-time');
+          if (created == true) ref.invalidate(_customExpensesProvider);
+        },
+        icon: const Icon(Icons.add, color: Colors.black),
+        label: const Text('New',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
       ),
       body: asyncData.when(
         loading: () => const Center(
@@ -112,9 +126,11 @@ class _ExpenseCard extends StatelessWidget {
       BuildContext context, GuestSplit guest, String expenseTitle) async {
     final rawPhone = guest.guestPhone;
     final waPhone = '92${rawPhone.substring(1)}';
-    final msg = Uri.encodeComponent(
-      'Hi ${guest.guestName}, you owe PKR ${guest.amount.toStringAsFixed(0)} for "$expenseTitle". Please settle up! – FairShare',
-    );
+    final amt = guest.amount.abs().toStringAsFixed(0);
+    final body = guest.amount >= 0
+        ? 'Hi ${guest.guestName}, you owe PKR $amt for "$expenseTitle". Please settle up! – FairShare'
+        : 'Hi ${guest.guestName}, I owe you PKR $amt for "$expenseTitle". Let me know how to pay you. – FairShare';
+    final msg = Uri.encodeComponent(body);
     final url = Uri.parse('https://wa.me/$waPhone?text=$msg');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       if (context.mounted) {
@@ -129,9 +145,42 @@ class _ExpenseCard extends StatelessWidget {
     }
   }
 
+  Future<void> _payGuest(
+      BuildContext context, GuestSplit guest, String expenseTitle) async {
+    await showPaymentBottomSheet(
+      context,
+      splitId: guest.id,
+      amount: guest.amount.abs(),
+      payerName: 'You',
+      receiverName: guest.guestName,
+      receiverPhone: guest.guestPhone,
+      expenseTitle: expenseTitle,
+      isGuest: true,
+      isCurrentUserPayer: true,
+      onComplete: onRefresh,
+    );
+  }
+
   Future<void> _markPaid(BuildContext context, GuestSplit guest) async {
     try {
       await ExpensesService().settleGuestSplit(guest.id);
+      onRefresh();
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _markFriendPaid(BuildContext context, FriendDebt debt) async {
+    try {
+      await ExpensesService().markSplitSettled(debt.splitId);
       onRefresh();
     } catch (e) {
       if (context.mounted) {
@@ -183,7 +232,14 @@ class _ExpenseCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 14),
       shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => OneTimeExpenseDetailScreen(detail: detail),
+          ),
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -245,6 +301,16 @@ class _ExpenseCard extends StatelessWidget {
               ],
             ),
 
+            if (detail.friendDebts.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              const Divider(color: Colors.white12, height: 1),
+              const SizedBox(height: 10),
+              ...detail.friendDebts.map((d) => _FriendRow(
+                    debt: d,
+                    onMarkPaid: () => _markFriendPaid(context, d),
+                  )),
+            ],
+
             if (detail.guests.isNotEmpty) ...[
               const SizedBox(height: 12),
               const Divider(color: Colors.white12, height: 1),
@@ -255,6 +321,7 @@ class _ExpenseCard extends StatelessWidget {
                     onWhatsApp: () =>
                         _sendWhatsApp(context, g, e.title),
                     onMarkPaid: () => _markPaid(context, g),
+                    onPay: () => _payGuest(context, g, e.title),
                   )),
             ],
 
@@ -281,6 +348,7 @@ class _ExpenseCard extends StatelessWidget {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -290,15 +358,16 @@ class _GuestRow extends StatelessWidget {
   final String expenseTitle;
   final VoidCallback onWhatsApp;
   final VoidCallback onMarkPaid;
+  final VoidCallback onPay;
 
   static const _accent = Color(0xFF00D4AA);
-  static const _red = Color(0xFFFF6B6B);
 
   const _GuestRow({
     required this.guest,
     required this.expenseTitle,
     required this.onWhatsApp,
     required this.onMarkPaid,
+    required this.onPay,
   });
 
   @override
@@ -339,9 +408,11 @@ class _GuestRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'PKR ${guest.amount.toStringAsFixed(0)}',
+                  BalanceText.sentence(guest.guestName, guest.amount),
                   style: TextStyle(
-                    color: guest.isSettled ? Colors.grey : _red,
+                    color: guest.isSettled
+                        ? Colors.grey
+                        : BalanceText.color(guest.amount),
                     fontSize: 12,
                   ),
                 ),
@@ -356,13 +427,93 @@ class _GuestRow extends StatelessWidget {
               onTap: onWhatsApp,
             ),
             const SizedBox(width: 6),
+            if (guest.amount < 0)
+              _SmallButton(
+                label: 'Pay',
+                icon: Icons.payment,
+                color: _accent,
+                onTap: onPay,
+              )
+            else
+              _SmallButton(
+                label: 'Paid',
+                icon: Icons.check,
+                color: _accent,
+                onTap: onMarkPaid,
+              ),
+          ] else
+            const Icon(Icons.check_circle_outline,
+                color: Colors.grey, size: 18),
+        ],
+      ),
+    );
+  }
+}
+
+class _FriendRow extends StatelessWidget {
+  final FriendDebt debt;
+  final VoidCallback onMarkPaid;
+
+  static const _accent = Color(0xFF00D4AA);
+
+  const _FriendRow({required this.debt, required this.onMarkPaid});
+
+  @override
+  Widget build(BuildContext context) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 16,
+            backgroundColor: debt.isSettled
+                ? Colors.grey.withValues(alpha: 0.2)
+                : _accent.withValues(alpha: 0.15),
+            child: Text(
+              debt.name[0].toUpperCase(),
+              style: TextStyle(
+                color: debt.isSettled ? Colors.grey : _accent,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  debt.name,
+                  style: TextStyle(
+                    color: debt.isSettled ? Colors.grey : onSurface,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    decoration:
+                        debt.isSettled ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+                Text(
+                  BalanceText.sentence(debt.name, debt.amount),
+                  style: TextStyle(
+                    color: debt.isSettled
+                        ? Colors.grey
+                        : BalanceText.color(debt.amount),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (!debt.isSettled)
             _SmallButton(
               label: 'Paid',
               icon: Icons.check,
               color: _accent,
               onTap: onMarkPaid,
-            ),
-          ] else
+            )
+          else
             const Icon(Icons.check_circle_outline,
                 color: Colors.grey, size: 18),
         ],

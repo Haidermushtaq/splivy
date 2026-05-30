@@ -156,6 +156,57 @@ class GroupsService {
     return GroupDetail(group: group, members: members, expenses: expenses);
   }
 
+  /// Adds a registered user to a group by their exact username.
+  ///
+  /// Only the group creator may add members (enforced by RLS); a permission
+  /// error is surfaced as a readable message. Returns the added member.
+  Future<GroupMember> addMemberByUsername(
+      String groupId, String username) async {
+    final uname = username.trim().replaceFirst('@', '');
+    if (uname.isEmpty) throw Exception('Enter a username');
+
+    final profile = await _client
+        .from('profiles')
+        .select('id, full_name, username')
+        .eq('username', uname)
+        .maybeSingle();
+
+    if (profile == null) {
+      throw Exception('No user found with username "$uname"');
+    }
+
+    final userId = profile['id'] as String;
+
+    final existing = await _client
+        .from('group_members')
+        .select('id')
+        .eq('group_id', groupId)
+        .eq('user_id', userId)
+        .maybeSingle();
+    if (existing != null) {
+      throw Exception('${profile['full_name']} is already in this group');
+    }
+
+    try {
+      await _client.from('group_members').insert({
+        'group_id': groupId,
+        'user_id': userId,
+      });
+    } on PostgrestException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('row-level security') || msg.contains('policy')) {
+        throw Exception('Only the group creator can add members');
+      }
+      rethrow;
+    }
+
+    return GroupMember(
+      id: userId,
+      fullName: profile['full_name'] as String,
+      username: profile['username'] as String,
+    );
+  }
+
   Future<void> deleteGroup(String groupId) async {
     await _client.from('groups').delete().eq('id', groupId);
   }

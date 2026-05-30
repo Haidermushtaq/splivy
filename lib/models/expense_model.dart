@@ -34,7 +34,7 @@ class ExpenseSplit {
 
 class Expense {
   final String id;
-  final String groupId;
+  final String? groupId;
   final String title;
   final double amount;
   final String? paidBy;
@@ -84,7 +84,7 @@ class Expense {
   }) {
     return Expense(
       id: map['id'] as String,
-      groupId: map['group_id'] as String,
+      groupId: map['group_id'] as String?,
       title: map['title'] as String,
       amount: (map['amount'] as num).toDouble(),
       paidBy: map['paid_by'] as String?,
@@ -146,8 +146,9 @@ class DebtItem {
   bool get isPayerMarked => paymentStatus == 'payer_marked';
   bool get isConfirmed => paymentStatus == 'confirmed';
   bool get isCashSettled => paymentStatus == 'cash_settled';
+  bool get isNetted => paymentStatus == 'netted';
   bool get isDisputed => paymentStatus == 'disputed';
-  bool get isSettled => isConfirmed || isCashSettled;
+  bool get isSettled => isConfirmed || isCashSettled || isNetted;
 }
 
 class GuestSplit {
@@ -155,7 +156,16 @@ class GuestSplit {
   final String expenseId;
   final String guestName;
   final String guestPhone;
+
+  /// Net amount between the guest and the creator (current user). Positive =
+  /// the guest owes you; negative = you owe the guest.
   final double amount;
+
+  /// The guest's full share of the bill (before counting what they paid).
+  final double share;
+
+  /// How much the guest actually paid toward the bill.
+  final double amountPaid;
   final bool isSettled;
   final DateTime createdAt;
 
@@ -165,28 +175,123 @@ class GuestSplit {
     required this.guestName,
     required this.guestPhone,
     required this.amount,
+    this.share = 0,
+    this.amountPaid = 0,
     required this.isSettled,
     required this.createdAt,
   });
 }
 
+/// An informational debt between two guests within a single expense, derived
+/// from the minimal-transfer settlement (neither party is a registered user).
+class GuestGuestDebt {
+  final String id;
+  final String expenseId;
+  final String debtorName;
+  final String? debtorPhone;
+  final String creditorName;
+  final String? creditorPhone;
+  final double amount;
+  final bool isSettled;
+
+  const GuestGuestDebt({
+    required this.id,
+    required this.expenseId,
+    required this.debtorName,
+    this.debtorPhone,
+    required this.creditorName,
+    this.creditorPhone,
+    required this.amount,
+    required this.isSettled,
+  });
+
+  factory GuestGuestDebt.fromJson(Map<String, dynamic> json) {
+    return GuestGuestDebt(
+      id: json['id'] as String,
+      expenseId: json['expense_id'] as String,
+      debtorName: json['debtor_name'] as String? ?? '',
+      debtorPhone: json['debtor_phone'] as String?,
+      creditorName: json['creditor_name'] as String? ?? '',
+      creditorPhone: json['creditor_phone'] as String?,
+      amount: (json['amount'] as num).toDouble(),
+      isSettled: json['is_settled'] as bool? ?? false,
+    );
+  }
+}
+
 class GuestSplitInput {
   final String guestName;
   final String guestPhone;
+
+  /// The guest's share of the bill (what they owe before counting what they
+  /// already paid).
   final double amount;
+
+  /// How much this guest actually paid toward the bill.
+  final double amountPaid;
 
   const GuestSplitInput({
     required this.guestName,
     required this.guestPhone,
     required this.amount,
+    this.amountPaid = 0,
+  });
+
+  /// Net amount the guest still owes the expense owner (share minus paid).
+  double get netOwed => amount - amountPaid;
+}
+
+/// A registered-user debt within a one-time expense: a friend who owes the
+/// creator. Mirrors a single `expense_splits` edge (debtor -> me).
+class FriendDebt {
+  final String splitId;
+  final String userId;
+  final String name;
+  final String? phone;
+  final double amount;
+  final bool isSettled;
+
+  const FriendDebt({
+    required this.splitId,
+    required this.userId,
+    required this.name,
+    this.phone,
+    required this.amount,
+    required this.isSettled,
+  });
+}
+
+/// A single contributor's payment toward an expense, for display in the
+/// "who paid what" breakdown (covers both registered users and guests).
+class PayerContribution {
+  final String name;
+  final double amount;
+  final bool isYou;
+
+  const PayerContribution({
+    required this.name,
+    required this.amount,
+    this.isYou = false,
   });
 }
 
 class CustomExpenseDetail {
   final Expense expense;
   final List<GuestSplit> guests;
+  final List<FriendDebt> friendDebts;
+  final List<GuestGuestDebt> guestGuestDebts;
+  final List<PayerContribution> payers;
 
-  const CustomExpenseDetail({required this.expense, required this.guests});
+  const CustomExpenseDetail({
+    required this.expense,
+    required this.guests,
+    this.friendDebts = const [],
+    this.guestGuestDebts = const [],
+    this.payers = const [],
+  });
 
-  bool get allSettled => guests.every((g) => g.isSettled);
+  bool get allSettled =>
+      guests.every((g) => g.isSettled) &&
+      friendDebts.every((f) => f.isSettled) &&
+      guestGuestDebts.every((d) => d.isSettled);
 }
