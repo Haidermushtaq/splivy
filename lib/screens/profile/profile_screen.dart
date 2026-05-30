@@ -509,6 +509,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _pickAndUploadAvatar() async {
+    // Capture the messenger up front: launching the gallery deactivates this
+    // widget, so resolving ScaffoldMessenger.of(context) after the await would
+    // throw "deactivated widget's ancestor".
+    final messenger = ScaffoldMessenger.of(context);
     try {
       final picked = await ImagePicker().pickImage(
         source: ImageSource.gallery,
@@ -517,8 +521,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         imageQuality: 80,
       );
       if (picked == null) return;
-
-      setState(() => isUploadingAvatar = true);
+      if (mounted) setState(() => isUploadingAvatar = true);
 
       final supabase = Supabase.instance.client;
       final userId = supabase.auth.currentUser!.id;
@@ -530,23 +533,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             bytes,
             fileOptions: const FileOptions(upsert: true, contentType: 'image/jpeg'),
           );
-      final publicUrl =
+      final baseUrl =
           supabase.storage.from('payment-proofs').getPublicUrl(path);
+      // The path is stable (avatar_<id>.jpg), so the URL never changes and
+      // NetworkImage would keep serving the cached old photo. A version query
+      // param busts both the CDN and the in-memory image cache.
+      final publicUrl =
+          '$baseUrl?v=${DateTime.now().millisecondsSinceEpoch}';
 
       await supabase
           .from('profiles')
           .update({'avatar_url': publicUrl}).eq('id', userId);
 
       ref.invalidate(myProfileProvider);
-      if (!mounted) return;
-      setState(() => isUploadingAvatar = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) setState(() => isUploadingAvatar = false);
+      messenger.showSnackBar(
         const SnackBar(content: Text('Profile picture updated! ✅')),
       );
     } catch (_) {
-      if (!mounted) return;
-      setState(() => isUploadingAvatar = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      if (mounted) setState(() => isUploadingAvatar = false);
+      messenger.showSnackBar(
         const SnackBar(content: Text('Failed to upload photo. Try again.')),
       );
     }
@@ -888,22 +894,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   borderRadius: BorderRadius.circular(8)),
             ),
             onPressed: () async {
+              // Capture before the await: signing out tears down this screen,
+              // so resolving these from context afterwards throws
+              // "deactivated widget's ancestor".
+              final rootNavigator = Navigator.of(context, rootNavigator: true);
+              final messenger = ScaffoldMessenger.of(context);
               Navigator.of(ctx).pop();
               try {
                 await AuthService().signOut();
-                if (mounted) {
-                  Navigator.of(context).pushNamedAndRemoveUntil(
-                      '/login', (route) => false);
-                }
+                rootNavigator.pushNamedAndRemoveUntil(
+                    '/login', (route) => false);
               } catch (_) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Logout failed. Please try again.'),
-                      backgroundColor: Colors.redAccent,
-                    ),
-                  );
-                }
+                messenger.showSnackBar(
+                  const SnackBar(
+                    content: Text('Logout failed. Please try again.'),
+                    backgroundColor: Colors.redAccent,
+                  ),
+                );
               }
             },
             child: const Text('Logout',

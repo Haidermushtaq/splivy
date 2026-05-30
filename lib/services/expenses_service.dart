@@ -409,10 +409,11 @@ class ExpensesService {
   /// every edge to the right table:
   ///   * user -> user  => `expense_splits`
   ///   * you  <-> guest => `guest_splits.amount` (signed: + guest owes you)
-  ///   * guest <-> guest => `guest_guest_debts` (informational)
-  /// A guest -> friend (non-creator) edge is routed through the creator so it
-  /// stays actionable. Every guest also gets one participation row carrying its
-  /// share and amount paid. Returns the user-user edges for auto-netting.
+  /// Guest -> friend (non-creator) AND guest -> guest edges are both routed
+  /// through the creator so they stay actionable: a guest has no account, so
+  /// the creator is the single hub that collects from and pays out to guests.
+  /// Every guest also gets one participation row carrying its share and amount
+  /// paid. Returns the user-user edges for auto-netting.
   Future<List<Map<String, dynamic>>> _writeSettlement({
     required String expenseId,
     required bool isMultiPayer,
@@ -447,7 +448,6 @@ class ExpensesService {
 
     final meEdge = List<double>.filled(guestSplits.length, 0);
     final userSplits = <Map<String, dynamic>>[];
-    final ggDebts = <Map<String, dynamic>>[];
 
     void addUserSplit(String from, String to, double amt) {
       if (amt <= 0.01 || from == to) return;
@@ -468,7 +468,11 @@ class ExpensesService {
       if (!fg && !tg) {
         addUserSplit(from, to, amt);
       } else if (fg && tg) {
-        ggDebts.add({'from': guestIdx(from), 'to': guestIdx(to), 'amount': amt});
+        // Guest owes guest: route through the creator so it's actionable.
+        // The debtor guest pays the creator, the creator pays the creditor
+        // guest. Neither guest has an account, so the creator is the hub.
+        meEdge[guestIdx(from)] += amt;
+        meEdge[guestIdx(to)] -= amt;
       } else if (fg && !tg) {
         // Guest owes a user.
         meEdge[guestIdx(from)] += amt;
@@ -510,22 +514,6 @@ class ExpensesService {
         });
       }
       await _client.from('guest_splits').insert(guestRows);
-    }
-
-    if (ggDebts.isNotEmpty) {
-      await _client.from('guest_guest_debts').insert(ggDebts.map((d) {
-        final from = guestSplits[d['from'] as int];
-        final to = guestSplits[d['to'] as int];
-        return {
-          'expense_id': expenseId,
-          'debtor_name': from.guestName,
-          'debtor_phone': from.guestPhone,
-          'creditor_name': to.guestName,
-          'creditor_phone': to.guestPhone,
-          'amount': double.parse((d['amount'] as double).toStringAsFixed(2)),
-          'is_settled': false,
-        };
-      }).toList());
     }
 
     return userSplits
@@ -1086,50 +1074,64 @@ class ExpensesService {
       }
     }
 
+    final ids = limited.map((e) => e['id'] as String).toList();
+    if (ids.isEmpty) return [];
+
+    // Batch the user's shares across every expense in one query, then sum
+    // per expense, instead of one query per row.
+    final shareByExpense = <String, double>{};
+    final shareRows = await _client
+        .from('expense_splits')
+        .select('expense_id, amount')
+        .inFilter('expense_id', ids)
+        .eq('user_id', _userId);
+    for (final s in shareRows as List) {
+      final eid = s['expense_id'] as String;
+      shareByExpense[eid] =
+          (shareByExpense[eid] ?? 0) + (s['amount'] as num).toDouble();
+    }
+
+    // Batch the payer rows so multi-payer "isPayer" needs no per-row query.
+    final payerExpenseIds = <String>{};
+    final payerRows = await _client
+        .from('expense_payers')
+        .select('expense_id')
+        .inFilter('expense_id', ids)
+        .eq('user_id', _userId);
+    for (final p in payerRows as List) {
+      payerExpenseIds.add(p['expense_id'] as String);
+    }
+
+    // Resolve payer display names concurrently rather than sequentially.
+    final paidByNames = await Future.wait(limited.map((e) => _resolvePaidByName(
+          e['id'] as String,
+          e['is_multi_payer'] as bool? ?? false,
+          e['paid_by'] as String?,
+        )));
+
     final result = <RecentExpense>[];
-    for (final e in limited) {
+    for (var i = 0; i < limited.length; i++) {
+      final e = limited[i];
       final expenseId = e['id'] as String;
       final isMultiPayer = e['is_multi_payer'] as bool? ?? false;
       final paidById = e['paid_by'] as String?;
       final groupId = e['group_id'] as String?;
 
-      final paidByName =
-          await _resolvePaidByName(expenseId, isMultiPayer, paidById);
-
-      // The user's own share = sum of what they owe on this expense.
-      final myShares = await _client
-          .from('expense_splits')
-          .select('amount')
-          .eq('expense_id', expenseId)
-          .eq('user_id', _userId);
-      double userShare = 0;
-      for (final s in myShares as List) {
-        userShare += (s['amount'] as num).toDouble();
-      }
-
-      bool isPayer = paidById == _userId;
-      if (!isPayer && isMultiPayer) {
-        final payerHit = await _client
-            .from('expense_payers')
-            .select('user_id')
-            .eq('expense_id', expenseId)
-            .eq('user_id', _userId)
-            .maybeSingle();
-        isPayer = payerHit != null;
-      }
+      final isPayer =
+          paidById == _userId || payerExpenseIds.contains(expenseId);
 
       result.add(RecentExpense(
         id: expenseId,
         title: e['title'] as String? ?? 'Expense',
         amount: (e['amount'] as num?)?.toDouble() ?? 0,
         category: e['category'] as String? ?? 'Other',
-        paidByName: paidByName,
+        paidByName: paidByNames[i],
         groupId: groupId,
         groupName: groupId != null ? groupNames[groupId] : null,
         isCustom: e['is_custom'] as bool? ?? false,
         isMultiPayer: isMultiPayer,
         isPayer: isPayer,
-        userShare: userShare,
+        userShare: shareByExpense[expenseId] ?? 0,
         createdAt: DateTime.parse(e['created_at'] as String),
       ));
     }

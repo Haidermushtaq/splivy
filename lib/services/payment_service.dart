@@ -22,6 +22,7 @@ class PaymentService {
         icon: Icons.phone_android,
         color: const Color(0xFFE91E63),
         urlBuilder: () => 'https://www.jazzcash.com.pk',
+        androidPackage: 'com.techlogix.mobilinkcustomer',
         isOnline: true,
       ),
       PaymentMethod(
@@ -30,6 +31,7 @@ class PaymentService {
         icon: Icons.phone_android,
         color: const Color(0xFF4CAF50),
         urlBuilder: () => 'https://www.easypaisa.com.pk',
+        androidPackage: 'pk.com.telenor.phoenix',
         isOnline: true,
       ),
       PaymentMethod(
@@ -38,6 +40,7 @@ class PaymentService {
         icon: Icons.account_balance_wallet,
         color: const Color(0xFF9C27B0),
         urlBuilder: () => 'https://sadapay.pk',
+        androidPackage: 'com.sadapay.app',
         isOnline: true,
       ),
       PaymentMethod(
@@ -46,6 +49,7 @@ class PaymentService {
         icon: Icons.account_balance_wallet,
         color: const Color(0xFF2196F3),
         urlBuilder: () => 'https://nayapay.com',
+        androidPackage: 'com.nayapay.app',
         isOnline: true,
       ),
       PaymentMethod(

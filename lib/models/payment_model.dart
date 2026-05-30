@@ -8,6 +8,11 @@ class PaymentMethod {
   final String Function()? urlBuilder;
   final bool isOnline;
 
+  /// Android package id of the wallet app, used to open the installed app
+  /// directly instead of its website. Null for methods with no app (e.g. cash)
+  /// or where a web link is the intended target (e.g. WhatsApp).
+  final String? androidPackage;
+
   const PaymentMethod({
     required this.id,
     required this.name,
@@ -15,6 +20,7 @@ class PaymentMethod {
     required this.color,
     this.urlBuilder,
     required this.isOnline,
+    this.androidPackage,
   });
 }
 

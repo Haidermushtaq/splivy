@@ -388,6 +388,20 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
           ),
         ),
         data: (allDebts) {
+          // Both feeds must resolve before deciding "all settled"; otherwise
+          // guest debts read as empty on the first pass and flash a false
+          // "All settled" state until _guestSplitsProvider catches up.
+          if (guestAsync.isLoading) {
+            return const Center(
+              child: LottieWidget(
+                assetPath: 'assets/animations/loading.json',
+                width: 100,
+                height: 100,
+                repeat: true,
+              ),
+            );
+          }
+
           final debts = widget.groupId != null
               ? allDebts
                   .where((d) =>

@@ -9,6 +9,10 @@ import 'providers/auth_provider.dart';
 import 'providers/realtime_provider.dart';
 import 'providers/theme_provider.dart';
 import 'providers/preferences_provider.dart';
+import 'providers/app_state_provider.dart';
+import 'providers/expenses_provider.dart';
+import 'providers/groups_provider.dart';
+import 'providers/friends_provider.dart';
 import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
 import 'services/reminder_service.dart';
@@ -30,6 +34,23 @@ import 'screens/settle/settle_up_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 
 final _navigatorKey = GlobalKey<NavigatorState>();
+
+/// Drops every cached, user-specific provider so a fresh sign-in (possibly a
+/// different account) never sees the previous user's profile, balance, groups,
+/// friends, or expense feed. The stream providers re-read currentUser on
+/// rebuild, so this also re-points realtime subscriptions at the new user.
+void _resetUserScopedState(WidgetRef ref) {
+  ref.invalidate(myProfileProvider);
+  ref.invalidate(userBalanceStreamProvider);
+  ref.invalidate(userBalanceProvider);
+  ref.invalidate(recentExpensesProvider);
+  ref.invalidate(archivedExpensesProvider);
+  ref.invalidate(customExpensesProvider);
+  ref.invalidate(userGroupsProvider);
+  ref.invalidate(userGroupsStreamProvider);
+  ref.invalidate(friendsListProvider);
+  ref.invalidate(friendRequestsStreamProvider);
+}
 
 void _handleNotificationTap(String? payload) {
   final nav = _navigatorKey.currentState;
@@ -90,10 +111,16 @@ class FairShareApp extends ConsumerWidget {
     ref.listen<AsyncValue<AuthState>>(authStateProvider, (_, next) {
       next.whenData((state) {
         if (state.event == AuthChangeEvent.signedOut) {
+          PreferencesService().clearUserCache();
+          _resetUserScopedState(ref);
+          ref.read(appStateProvider.notifier).refresh();
           _navigatorKey.currentState
               ?.pushNamedAndRemoveUntil('/login', (r) => false);
         }
         if (state.event == AuthChangeEvent.signedIn) {
+          // A different account may have signed in; drop every cached,
+          // user-scoped value so nothing from the previous session leaks through.
+          _resetUserScopedState(ref);
           ReminderService().scheduleAllReminders();
         }
       });

@@ -12,6 +12,7 @@ import '../../providers/expenses_provider.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/friends_provider.dart';
 import '../../services/expenses_service.dart';
+import '../expenses/one_time_expense_detail_screen.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/skeleton_loader.dart';
 
@@ -144,7 +145,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           onPressed: () {
             ref.invalidate(userBalanceStreamProvider);
             ref.invalidate(userGroupsProvider);
+            ref.invalidate(userGroupsStreamProvider);
             ref.invalidate(recentExpensesProvider);
+            ref.invalidate(customExpensesProvider);
             ref.invalidate(friendsListProvider);
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -281,11 +284,22 @@ class _HomeTab extends StatelessWidget {
   }
 }
 
-class _RecentActivityList extends ConsumerWidget {
+class _RecentActivityList extends ConsumerStatefulWidget {
   const _RecentActivityList();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_RecentActivityList> createState() =>
+      _RecentActivityListState();
+}
+
+class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
+  bool _opening = false;
+
+  @override
+  Widget build(BuildContext context) {
+    // Warm the one-time-expense detail cache so taps open instantly.
+    ref.watch(customExpensesProvider);
+
     final async = ref.watch(recentExpensesProvider);
     return async.when(
       loading: () => const Padding(
@@ -300,16 +314,62 @@ class _RecentActivityList extends ConsumerWidget {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (_, i) => _RecentExpenseCard(expense: items[i]),
+          itemBuilder: (_, i) => _RecentExpenseCard(
+            expense: items[i],
+            onTap: () => _openExpense(items[i]),
+          ),
         );
       },
     );
+  }
+
+  Future<void> _openExpense(RecentExpense expense) async {
+    // Ignore extra taps while a navigation is already in flight.
+    if (_opening) return;
+
+    // Group expenses live inside their group screen.
+    if (expense.groupId != null && !expense.isCustom) {
+      Navigator.of(context).pushNamed('/group-detail', arguments: {
+        'groupId': expense.groupId,
+        'groupName': expense.groupName ?? 'Group',
+      });
+      return;
+    }
+
+    setState(() => _opening = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    try {
+      // Reads the cached future; only hits the network on the first open.
+      final all = await ref.read(customExpensesProvider.future);
+      final detail =
+          all.where((d) => d.expense.id == expense.id).firstOrNull;
+      if (!mounted) return;
+      if (detail == null) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Expense details not available.')),
+        );
+        return;
+      }
+      await navigator.push(MaterialPageRoute(
+        builder: (_) => OneTimeExpenseDetailScreen(detail: detail),
+      ));
+    } catch (_) {
+      if (mounted) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Failed to open expense. Try again.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _opening = false);
+    }
   }
 }
 
 class _RecentExpenseCard extends StatelessWidget {
   final RecentExpense expense;
-  const _RecentExpenseCard({required this.expense});
+  final VoidCallback onTap;
+  const _RecentExpenseCard({required this.expense, required this.onTap});
 
   static IconData _categoryIcon(String category) {
     switch (category) {
@@ -362,6 +422,7 @@ class _RecentExpenseCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
       ),
       child: ListTile(
+        onTap: onTap,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         leading: CircleAvatar(

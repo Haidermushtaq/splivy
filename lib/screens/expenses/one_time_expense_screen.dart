@@ -216,17 +216,40 @@ class _OneTimeExpenseScreenState extends ConsumerState<OneTimeExpenseScreen> {
     final dVals = debtors.map((e) => e.value).toList();
     final cVals = creditors.map((e) => e.value).toList();
 
+    // The creator/payer is the hub that guest money routes through, since
+    // guests have no account to settle with each other directly.
+    final hubKey =
+        _isMultiPayer ? _currentUserId : _participants[_selectedPayerIndex].id;
+    final hubName = names[hubKey] ?? 'You';
+
     final settlements = <Map<String, dynamic>>[];
     int di = 0, ci = 0;
     while (di < debtors.length && ci < creditors.length) {
       final amount =
           [dVals[di].abs(), cVals[ci]].reduce((a, b) => a < b ? a : b);
       if (amount > 0.01) {
-        settlements.add({
-          'fromName': names[debtors[di].key],
-          'toName': names[creditors[ci].key],
-          'amount': amount,
-        });
+        final fromKey = debtors[di].key;
+        final toKey = creditors[ci].key;
+        final isGuestToGuest =
+            fromKey.startsWith('guest_') && toKey.startsWith('guest_');
+        if (isGuestToGuest && hubKey != fromKey && hubKey != toKey) {
+          settlements.add({
+            'fromName': names[fromKey],
+            'toName': hubName,
+            'amount': amount,
+          });
+          settlements.add({
+            'fromName': hubName,
+            'toName': names[toKey],
+            'amount': amount,
+          });
+        } else {
+          settlements.add({
+            'fromName': names[fromKey],
+            'toName': names[toKey],
+            'amount': amount,
+          });
+        }
       }
       dVals[di] += amount;
       cVals[ci] -= amount;

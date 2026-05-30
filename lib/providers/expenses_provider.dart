@@ -24,13 +24,25 @@ final userBalanceProvider = FutureProvider<UserBalance>((ref) {
 });
 
 /// Recent expenses the current user is part of, newest first (max 20).
-/// Updates when: manually invalidated (e.g. dashboard refresh button).
-final recentExpensesProvider = FutureProvider<List<RecentExpense>>((ref) {
+/// autoDispose: refetches whenever the dashboard is re-entered, so archived
+/// /settled expenses drop off the feed without a manual refresh.
+final recentExpensesProvider =
+    FutureProvider.autoDispose<List<RecentExpense>>((ref) {
   return ref.read(expensesServiceProvider).getRecentExpenses();
 });
 
 /// Archived (settled) expenses the current user is part of.
-/// Updates when: manually invalidated (e.g. after unarchiving).
-final archivedExpensesProvider = FutureProvider<List<RecentExpense>>((ref) {
+/// autoDispose: refetches each time the archived screen opens.
+final archivedExpensesProvider =
+    FutureProvider.autoDispose<List<RecentExpense>>((ref) {
   return ref.read(expensesServiceProvider).getArchivedExpenses();
+});
+
+/// Full detail of every one-time (custom) expense the user is part of.
+/// Cached so tapping a recent-activity row opens instantly instead of
+/// re-fetching the whole feed on each tap. autoDispose keeps it fresh on
+/// re-entry while still serving repeated taps from the in-flight cache.
+final customExpensesProvider =
+    FutureProvider.autoDispose<List<CustomExpenseDetail>>((ref) {
+  return ref.read(expensesServiceProvider).getCustomExpenses();
 });

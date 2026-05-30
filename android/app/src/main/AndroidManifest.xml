@@ -71,5 +71,10 @@
             <action android:name="android.intent.action.VIEW"/>
             <data android:scheme="https"/>
         </intent>
+        <!-- Wallet apps we launch directly from the payment sheet. -->
+        <package android:name="pk.com.telenor.phoenix"/>
+        <package android:name="com.techlogix.mobilinkcustomer"/>
+        <package android:name="com.sadapay.app"/>
+        <package android:name="com.nayapay.app"/>
     </queries>
 </manifest>

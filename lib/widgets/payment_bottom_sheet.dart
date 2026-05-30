@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:android_intent_plus/android_intent.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -91,6 +93,26 @@ class _PaymentBottomSheetState extends State<_PaymentBottomSheet> {
 
   Future<void> _openPaymentApp() async {
     if (_selectedMethod?.urlBuilder == null) return;
+
+    // Prefer opening the installed wallet app over its website. The wallet
+    // apps expose no payment deep link, so we just bring the app to the
+    // foreground; the user then enters the recipient and amount manually.
+    final pkg = _selectedMethod!.androidPackage;
+    if (!kIsWeb && Platform.isAndroid && pkg != null) {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.MAIN',
+        package: pkg,
+        category: 'android.intent.category.LAUNCHER',
+        flags: const [268435456], // FLAG_ACTIVITY_NEW_TASK
+      );
+      if (await intent.canResolveActivity() ?? false) {
+        await intent.launch();
+        setState(() => _hasOpenedPaymentApp = true);
+        return;
+      }
+    }
+
+    // App not installed (or non-Android): fall back to the website.
     final url = Uri.parse(_selectedMethod!.urlBuilder!());
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);

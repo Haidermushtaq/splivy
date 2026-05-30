@@ -161,13 +161,18 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   String _parseError(Object error) {
-    final msg = error.toString().toLowerCase();
+    // AuthException carries a structured message/code; prefer those over the
+    // toString() form, whose format varies between gotrue versions.
+    final msg = error is AuthException
+        ? '${error.message} ${error.code ?? ''}'.toLowerCase()
+        : error.toString().toLowerCase();
     if (msg.contains('invalid login credentials') ||
         msg.contains('invalid_credentials') ||
         msg.contains('invalid credentials')) {
       return 'Wrong email or password';
     }
-    if (msg.contains('email not confirmed')) {
+    if (msg.contains('email not confirmed') ||
+        msg.contains('email_not_confirmed')) {
       return 'Please verify your email before logging in';
     }
     if (msg.contains('network') ||
