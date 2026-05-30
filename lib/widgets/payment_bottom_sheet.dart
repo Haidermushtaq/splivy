@@ -99,16 +99,20 @@ class _PaymentBottomSheetState extends State<_PaymentBottomSheet> {
     // foreground; the user then enters the recipient and amount manually.
     final pkg = _selectedMethod!.androidPackage;
     if (!kIsWeb && Platform.isAndroid && pkg != null) {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.MAIN',
-        package: pkg,
-        category: 'android.intent.category.LAUNCHER',
-        flags: const [268435456], // FLAG_ACTIVITY_NEW_TASK
-      );
-      if (await intent.canResolveActivity() ?? false) {
+      // canResolveActivity() is unreliable across OEM launchers, so just try to
+      // launch and fall back to the website only if the app isn't installed.
+      try {
+        final intent = AndroidIntent(
+          action: 'android.intent.action.MAIN',
+          package: pkg,
+          category: 'android.intent.category.LAUNCHER',
+          flags: const [268435456], // FLAG_ACTIVITY_NEW_TASK
+        );
         await intent.launch();
         setState(() => _hasOpenedPaymentApp = true);
         return;
+      } catch (_) {
+        // App not installed or couldn't launch; fall through to the website.
       }
     }
 

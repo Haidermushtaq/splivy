@@ -126,6 +126,26 @@ class PaymentService {
     }
   }
 
+  /// Reverts a "payer marked as paid" claim back to unpaid. Only valid before
+  /// the receiver confirms — used when the payer marked paid by mistake or
+  /// uploaded the wrong proof. Clears the amount paid, method, proof and payer.
+  Future<void> cancelPaymentClaim({
+    required String splitId,
+    required bool isGuest,
+  }) async {
+    final table = isGuest ? 'guest_splits' : 'expense_splits';
+
+    await _client.from(table).update({
+      'payment_status': PaymentStatus.pending,
+      'amount_paid': 0,
+      'payment_method': null,
+      'payment_proof_url': null,
+      'is_settled': false,
+      'settled_at': null,
+      if (!isGuest) 'paid_by_user': null,
+    }).eq('id', splitId);
+  }
+
   Future<void> receiverConfirms({
     required String splitId,
     required bool isGuest,

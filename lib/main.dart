@@ -48,8 +48,11 @@ void _resetUserScopedState(WidgetRef ref) {
   ref.invalidate(customExpensesProvider);
   ref.invalidate(userGroupsProvider);
   ref.invalidate(userGroupsStreamProvider);
+  ref.invalidate(selectedGroupProvider);
   ref.invalidate(friendsListProvider);
+  ref.invalidate(pendingRequestsProvider);
   ref.invalidate(friendRequestsStreamProvider);
+  ref.invalidate(friendRequestNotificationProvider);
 }
 
 void _handleNotificationTap(String? payload) {
