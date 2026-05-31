@@ -12,7 +12,7 @@ class FriendsService {
     final q = query.startsWith('@') ? query.substring(1) : query;
     final result = await _client
         .from('profiles')
-        .select('id, full_name, username, email')
+        .select('id, full_name, username, email, avatar_url')
         .or('username.eq.$q,email.eq.$q')
         .neq('id', _userId)
         .maybeSingle();
@@ -73,7 +73,7 @@ class FriendsService {
 
       final profile = await _client
           .from('profiles')
-          .select('full_name, username, email')
+          .select('full_name, username, email, avatar_url')
           .eq('id', otherUserId)
           .maybeSingle();
 
@@ -97,6 +97,7 @@ class FriendsService {
         email: profile['email'] as String? ?? '',
         balance: balance,
         status: row['status'] as String,
+        avatarUrl: profile['avatar_url'] as String?,
       ));
     }
 
@@ -116,7 +117,7 @@ class FriendsService {
 
       final profile = await _client
           .from('profiles')
-          .select('full_name, username')
+          .select('full_name, username, avatar_url')
           .eq('id', fromUserId)
           .maybeSingle();
 
@@ -127,6 +128,7 @@ class FriendsService {
         fromUserId: fromUserId,
         fullName: profile['full_name'] as String,
         username: profile['username'] as String,
+        avatarUrl: profile['avatar_url'] as String?,
       ));
     }
 
@@ -160,7 +162,8 @@ class FriendsService {
     }) async {
       final rows = await _client
           .from('expense_splits')
-          .select('amount, expense_id, is_settled, payment_status, $embed')
+          .select(
+              'amount, amount_paid, expense_id, is_settled, payment_status, $embed')
           .eq('user_id', debtor)
           .eq('owed_to', creditor)
           .order('created_at', ascending: false)
@@ -200,6 +203,7 @@ class FriendsService {
         groupName: groupId == null ? null : groupNames[groupId],
         isSettled: s['is_settled'] as bool? ?? false,
         paymentStatus: s['payment_status'] as String? ?? 'pending',
+        amountPaid: (s['amount_paid'] as num?)?.toDouble() ?? 0,
       );
     }
 

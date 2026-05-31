@@ -685,14 +685,20 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
             CircleAvatar(
               radius: 22,
               backgroundColor: _accent,
-              child: Text(
-                debt.name[0].toUpperCase(),
-                style: const TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
+              backgroundImage:
+                  (debt.avatarUrl != null && debt.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(debt.avatarUrl!)
+                      : null,
+              child: (debt.avatarUrl == null || debt.avatarUrl!.isEmpty)
+                  ? Text(
+                      debt.name[0].toUpperCase(),
+                      style: const TextStyle(
+                        color: Colors.black,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(

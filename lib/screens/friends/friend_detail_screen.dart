@@ -141,13 +141,20 @@ class _FriendDetailScreenState extends ConsumerState<FriendDetailScreen> {
                     CircleAvatar(
                       radius: 32,
                       backgroundColor: _accent,
-                      child: Text(
-                        friend.fullName[0].toUpperCase(),
-                        style: const TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 24),
-                      ),
+                      backgroundImage: (friend.avatarUrl != null &&
+                              friend.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(friend.avatarUrl!)
+                          : null,
+                      child: (friend.avatarUrl == null ||
+                              friend.avatarUrl!.isEmpty)
+                          ? Text(
+                              friend.fullName[0].toUpperCase(),
+                              style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 24),
+                            )
+                          : null,
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -497,6 +504,11 @@ class _BreakdownSheet extends StatelessWidget {
                       fontWeight: FontWeight.bold)),
               Text(label,
                   style: TextStyle(color: color, fontSize: 11)),
+              if (!e.isSettled && e.wasOffset)
+                Text(
+                  'PKR ${e.amountPaid.toStringAsFixed(0)} offset from PKR ${e.originalAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 10),
+                ),
             ],
           ),
         ],

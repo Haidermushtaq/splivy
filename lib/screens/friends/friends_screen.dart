@@ -265,12 +265,18 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
             CircleAvatar(
               radius: 20,
               backgroundColor: _accent,
-              child: Text(
-                req.fullName[0].toUpperCase(),
-                style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold),
-              ),
+              backgroundImage:
+                  (req.avatarUrl != null && req.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(req.avatarUrl!)
+                      : null,
+              child: (req.avatarUrl == null || req.avatarUrl!.isEmpty)
+                  ? Text(
+                      req.fullName[0].toUpperCase(),
+                      style: const TextStyle(
+                          color: Colors.black,
+                          fontWeight: FontWeight.bold),
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -417,14 +423,21 @@ class _FriendCard extends StatelessWidget {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: _accent,
-                child: Text(
-                  friend.fullName[0].toUpperCase(),
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                  ),
-                ),
+                backgroundImage:
+                    (friend.avatarUrl != null && friend.avatarUrl!.isNotEmpty)
+                        ? NetworkImage(friend.avatarUrl!)
+                        : null,
+                child:
+                    (friend.avatarUrl == null || friend.avatarUrl!.isEmpty)
+                        ? Text(
+                            friend.fullName[0].toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 18,
+                            ),
+                          )
+                        : null,
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -690,11 +703,17 @@ class _UserResultCard extends StatelessWidget {
             CircleAvatar(
               radius: 22,
               backgroundColor: _accent,
-              child: Text(
-                user.fullName[0].toUpperCase(),
-                style: const TextStyle(
-                    color: Colors.black, fontWeight: FontWeight.bold),
-              ),
+              backgroundImage:
+                  (user.avatarUrl != null && user.avatarUrl!.isNotEmpty)
+                      ? NetworkImage(user.avatarUrl!)
+                      : null,
+              child: (user.avatarUrl == null || user.avatarUrl!.isEmpty)
+                  ? Text(
+                      user.fullName[0].toUpperCase(),
+                      style: const TextStyle(
+                          color: Colors.black, fontWeight: FontWeight.bold),
+                    )
+                  : null,
             ),
             const SizedBox(width: 12),
             Expanded(

@@ -3,12 +3,14 @@ class Profile {
   final String fullName;
   final String username;
   final String email;
+  final String? avatarUrl;
 
   const Profile({
     required this.id,
     required this.fullName,
     required this.username,
     required this.email,
+    this.avatarUrl,
   });
 
   factory Profile.fromJson(Map<String, dynamic> json) => Profile(
@@ -16,6 +18,7 @@ class Profile {
         fullName: json['full_name'] as String,
         username: json['username'] as String,
         email: json['email'] as String? ?? '',
+        avatarUrl: json['avatar_url'] as String?,
       );
 }
 
@@ -28,6 +31,7 @@ class Friend {
   final String email;
   final double balance;
   final String status;
+  final String? avatarUrl;
 
   const Friend({
     required this.id,
@@ -38,6 +42,7 @@ class Friend {
     required this.email,
     required this.balance,
     required this.status,
+    this.avatarUrl,
   });
 }
 
@@ -56,6 +61,11 @@ class FriendExpense {
   final bool isSettled;
   final String paymentStatus;
 
+  /// Portion of the original debt cancelled by auto-netting. For a still-pending
+  /// debt the original was `amount + amountPaid`; for a netted debt `amount`
+  /// already equals the original and this is what was offset.
+  final double amountPaid;
+
   const FriendExpense({
     required this.expenseId,
     required this.title,
@@ -65,6 +75,7 @@ class FriendExpense {
     this.groupName,
     this.isSettled = false,
     this.paymentStatus = 'pending',
+    this.amountPaid = 0,
   });
 
   /// Where this debt originates: the group name, or "One-time".
@@ -72,6 +83,13 @@ class FriendExpense {
 
   /// True when this debt was cleared by auto-netting against an offsetting debt.
   bool get isNetted => paymentStatus == 'netted';
+
+  /// True when part of this debt was cancelled against an offsetting debt.
+  bool get wasOffset => amountPaid > 0.01;
+
+  /// The original debt before any offsetting was applied.
+  double get originalAmount =>
+      paymentStatus == 'netted' ? amount : amount + amountPaid;
 }
 
 class PendingRequest {
@@ -79,11 +97,13 @@ class PendingRequest {
   final String fromUserId;
   final String fullName;
   final String username;
+  final String? avatarUrl;
 
   const PendingRequest({
     required this.id,
     required this.fromUserId,
     required this.fullName,
     required this.username,
+    this.avatarUrl,
   });
 }

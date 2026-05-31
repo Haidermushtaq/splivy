@@ -126,6 +126,7 @@ class DebtItem {
   final String paymentStatus;
   final String? paymentProofUrl;
   final String? paymentMethod;
+  final String? avatarUrl;
 
   const DebtItem({
     required this.expenseId,
@@ -140,6 +141,7 @@ class DebtItem {
     this.paymentStatus = 'pending',
     this.paymentProofUrl,
     this.paymentMethod,
+    this.avatarUrl,
   });
 
   bool get isPending => paymentStatus == 'pending';
@@ -288,6 +290,12 @@ class ExpenseSplitEdge {
   final bool isSettled;
   final String paymentStatus;
 
+  /// Portion of the original debt that was cancelled by auto-netting. For a
+  /// still-pending split the original debt was `amount + amountPaid`; for a
+  /// fully-netted split `amount` already equals the original and this is the
+  /// amount that was offset.
+  final double amountPaid;
+
   const ExpenseSplitEdge({
     required this.splitId,
     required this.debtorId,
@@ -297,11 +305,19 @@ class ExpenseSplitEdge {
     required this.amount,
     required this.isSettled,
     this.paymentStatus = 'pending',
+    this.amountPaid = 0,
   });
 
   bool get debtorIsYou => debtorName == 'You';
   bool get creditorIsYou => creditorName == 'You';
   bool get involvesYou => debtorIsYou || creditorIsYou;
+
+  /// True when part of this debt was cancelled against an offsetting debt.
+  bool get wasOffset => amountPaid > 0.01;
+
+  /// The original debt before any offsetting was applied.
+  double get originalAmount =>
+      paymentStatus == 'netted' ? amount : amount + amountPaid;
 }
 
 /// Full detail of a single group expense: the expense, its group name, the
