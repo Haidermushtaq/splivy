@@ -33,21 +33,6 @@ final groupExpensesStreamProvider =
       .asyncMap((_) => service.getGroupExpenses(groupId));
 });
 
-/// Live net-balance stream for the current user.
-///
-/// Used by: DashboardScreen summary card — animates when balance changes.
-/// Updates when: any row in 'expense_splits' for the current user changes.
-final userBalanceStreamProvider = StreamProvider<UserBalance>((ref) {
-  final user = Supabase.instance.client.auth.currentUser;
-  if (user == null) return const Stream.empty();
-  final service = ref.read(expensesServiceProvider);
-  return Supabase.instance.client
-      .from('expense_splits')
-      .stream(primaryKey: ['id'])
-      .eq('user_id', user.id)
-      .asyncMap((_) => service.getUserTotalBalance());
-});
-
 /// Live stream of pending friend requests directed at the current user.
 ///
 /// Used by: FriendsScreen (request list), DashboardScreen bottom-nav badge.

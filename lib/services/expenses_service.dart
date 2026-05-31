@@ -1029,10 +1029,12 @@ class ExpensesService {
         .eq('paid_by', _userId)
         .eq('is_archived', archived);
 
+    // Include expenses where the user is either the debtor (user_id) or the
+    // creditor (owed_to) so a friend who is owed money still sees the expense.
     final splitRows = await _client
         .from('expense_splits')
         .select('expense_id')
-        .eq('user_id', _userId);
+        .or('user_id.eq.$_userId,owed_to.eq.$_userId');
     final splitIds = (splitRows as List)
         .map((s) => s['expense_id'] as String)
         .toSet()
@@ -1084,7 +1086,7 @@ class ExpensesService {
         .from('expense_splits')
         .select('expense_id, amount')
         .inFilter('expense_id', ids)
-        .eq('user_id', _userId);
+        .or('user_id.eq.$_userId,owed_to.eq.$_userId');
     for (final s in shareRows as List) {
       final eid = s['expense_id'] as String;
       shareByExpense[eid] =

@@ -41,7 +41,6 @@ final _navigatorKey = GlobalKey<NavigatorState>();
 /// rebuild, so this also re-points realtime subscriptions at the new user.
 void _resetUserScopedState(WidgetRef ref) {
   ref.invalidate(myProfileProvider);
-  ref.invalidate(userBalanceStreamProvider);
   ref.invalidate(userBalanceProvider);
   ref.invalidate(recentExpensesProvider);
   ref.invalidate(archivedExpensesProvider);

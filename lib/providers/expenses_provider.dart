@@ -15,11 +15,11 @@ final groupExpensesProvider =
   return ref.read(expensesServiceProvider).getGroupExpenses(groupId);
 });
 
-/// One-shot fetch of the current user's total balance (what they owe vs. are owed).
-///
-/// Prefer [userBalanceStreamProvider] in DashboardScreen for live updates.
-/// Updates when: manually invalidated.
-final userBalanceProvider = FutureProvider<UserBalance>((ref) {
+/// Current user's total balance (what they owe vs. are owed).
+/// autoDispose: refetches whenever the dashboard is re-entered, so the balance
+/// stays fresh without depending on a realtime websocket. Also refetched by the
+/// dashboard refresh button and on account switch.
+final userBalanceProvider = FutureProvider.autoDispose<UserBalance>((ref) {
   return ref.read(expensesServiceProvider).getUserTotalBalance();
 });
 

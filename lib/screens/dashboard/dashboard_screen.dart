@@ -143,7 +143,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           icon: const Icon(Icons.refresh),
           tooltip: 'Refresh',
           onPressed: () {
-            ref.invalidate(userBalanceStreamProvider);
+            ref.invalidate(userBalanceProvider);
             ref.invalidate(userGroupsProvider);
             ref.invalidate(userGroupsStreamProvider);
             ref.invalidate(recentExpensesProvider);
@@ -529,7 +529,7 @@ class _SummaryCardState extends ConsumerState<_SummaryCard>
 
   @override
   Widget build(BuildContext context) {
-    final balanceAsync = ref.watch(userBalanceStreamProvider);
+    final balanceAsync = ref.watch(userBalanceProvider);
 
     return balanceAsync.when(
       loading: () => const BalanceCardSkeleton(),
