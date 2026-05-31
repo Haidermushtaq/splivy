@@ -24,12 +24,14 @@ import 'screens/auth/email_verification_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/groups/groups_screen.dart';
 import 'screens/groups/group_detail_screen.dart';
+import 'screens/groups/group_expense_detail_screen.dart';
 import 'screens/expenses/add_expense_screen.dart';
 import 'screens/friends/friends_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/expenses/custom_expenses_screen.dart';
 import 'screens/expenses/one_time_expense_screen.dart';
 import 'screens/expenses/archived_expenses_screen.dart';
+import 'screens/history/history_screen.dart';
 import 'screens/settle/settle_up_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 
@@ -177,6 +179,15 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
         ),
         settings,
       );
+    case '/group-expense-detail':
+      final args = settings.arguments as Map<String, dynamic>;
+      return slideRoute(
+        GroupExpenseDetailScreen(
+          expenseId: args['expenseId'] as String,
+          groupName: args['groupName'] as String?,
+        ),
+        settings,
+      );
     case '/add-expense':
       final args = settings.arguments as Map<String, dynamic>;
       return slideRoute(
@@ -198,6 +209,8 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
       return slideRoute(const OneTimeExpenseScreen(), settings);
     case '/archived-expenses':
       return slideRoute(const ArchivedExpensesScreen(), settings);
+    case '/history':
+      return slideRoute(const HistoryScreen(), settings);
     default:
       return slideRoute(const SplashScreen(), settings);
   }

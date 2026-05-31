@@ -146,47 +146,67 @@ class FriendsService {
   Future<double> getBalanceWithFriend(String friendId) =>
       _getBalanceWithUser(friendId);
 
-  /// Every unsettled expense between the current user and [otherUserId], both
-  /// directions, newest first. Powers the per-friend breakdown.
+  /// Every expense between the current user and [otherUserId], both directions,
+  /// newest first. Each item carries its source (group name or "One-time") and
+  /// whether it's still outstanding or part of the settled/offsetting history.
+  /// Powers the per-friend breakdown.
   Future<List<FriendExpense>> getExpensesWithFriend(String otherUserId) async {
-    const embed = 'expenses!inner(title, created_at, is_archived)';
-    final List<FriendExpense> items = [];
+    const embed =
+        'expenses!inner(title, created_at, group_id, is_archived)';
 
-    final theyOweMe = await _client
-        .from('expense_splits')
-        .select('amount, expense_id, $embed')
-        .eq('owed_to', _userId)
-        .eq('user_id', otherUserId)
-        .eq('is_settled', false)
-        .eq('expenses.is_archived', false);
-    for (final s in theyOweMe as List) {
+    Future<List<Map<String, dynamic>>> fetch({
+      required String debtor,
+      required String creditor,
+    }) async {
+      final rows = await _client
+          .from('expense_splits')
+          .select('amount, expense_id, is_settled, payment_status, $embed')
+          .eq('user_id', debtor)
+          .eq('owed_to', creditor)
+          .order('created_at', ascending: false)
+          .limit(100);
+      return (rows as List).cast<Map<String, dynamic>>();
+    }
+
+    final theyOweMe = await fetch(debtor: otherUserId, creditor: _userId);
+    final iOweThem = await fetch(debtor: _userId, creditor: otherUserId);
+
+    // Resolve group names for any group-sourced debts.
+    final groupIds = <String>{
+      for (final s in [...theyOweMe, ...iOweThem])
+        if ((s['expenses'] as Map)['group_id'] != null)
+          (s['expenses'] as Map)['group_id'] as String,
+    };
+    final groupNames = <String, String>{};
+    if (groupIds.isNotEmpty) {
+      final groups = await _client
+          .from('groups')
+          .select('id, name')
+          .inFilter('id', groupIds.toList());
+      for (final g in groups as List) {
+        groupNames[g['id'] as String] = g['name'] as String;
+      }
+    }
+
+    FriendExpense toItem(Map<String, dynamic> s, bool theyOweMe) {
       final e = s['expenses'] as Map;
-      items.add(FriendExpense(
+      final groupId = e['group_id'] as String?;
+      return FriendExpense(
         expenseId: s['expense_id'] as String,
         title: e['title'] as String,
         amount: (s['amount'] as num).toDouble(),
-        theyOweMe: true,
+        theyOweMe: theyOweMe,
         date: DateTime.parse(e['created_at'] as String),
-      ));
+        groupName: groupId == null ? null : groupNames[groupId],
+        isSettled: s['is_settled'] as bool? ?? false,
+        paymentStatus: s['payment_status'] as String? ?? 'pending',
+      );
     }
 
-    final iOweThem = await _client
-        .from('expense_splits')
-        .select('amount, expense_id, $embed')
-        .eq('owed_to', otherUserId)
-        .eq('user_id', _userId)
-        .eq('is_settled', false)
-        .eq('expenses.is_archived', false);
-    for (final s in iOweThem as List) {
-      final e = s['expenses'] as Map;
-      items.add(FriendExpense(
-        expenseId: s['expense_id'] as String,
-        title: e['title'] as String,
-        amount: (s['amount'] as num).toDouble(),
-        theyOweMe: false,
-        date: DateTime.parse(e['created_at'] as String),
-      ));
-    }
+    final items = <FriendExpense>[
+      for (final s in theyOweMe) toItem(s, true),
+      for (final s in iOweThem) toItem(s, false),
+    ];
 
     items.sort((a, b) => b.date.compareTo(a.date));
     return items;

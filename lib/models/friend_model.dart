@@ -41,15 +41,20 @@ class Friend {
   });
 }
 
-/// A single unsettled expense between the current user and a friend.
+/// A single expense between the current user and a friend.
 /// [theyOweMe] is true when the friend owes the current user for this expense,
-/// false when the current user owes the friend.
+/// false when the current user owes the friend. [groupName] is the group this
+/// debt came from, or null for a one-time expense. [isSettled] marks debts that
+/// have been paid or auto-offset (history); [paymentStatus] distinguishes how.
 class FriendExpense {
   final String expenseId;
   final String title;
   final double amount;
   final bool theyOweMe;
   final DateTime date;
+  final String? groupName;
+  final bool isSettled;
+  final String paymentStatus;
 
   const FriendExpense({
     required this.expenseId,
@@ -57,7 +62,16 @@ class FriendExpense {
     required this.amount,
     required this.theyOweMe,
     required this.date,
+    this.groupName,
+    this.isSettled = false,
+    this.paymentStatus = 'pending',
   });
+
+  /// Where this debt originates: the group name, or "One-time".
+  String get source => groupName ?? 'One-time';
+
+  /// True when this debt was cleared by auto-netting against an offsetting debt.
+  bool get isNetted => paymentStatus == 'netted';
 }
 
 class PendingRequest {

@@ -275,6 +275,51 @@ class PayerContribution {
   });
 }
 
+/// A single settlement edge within a group expense: [debtorName] owes
+/// [creditorName] [amount]. Either party may be the current user, in which case
+/// their name is rendered as "You".
+class ExpenseSplitEdge {
+  final String splitId;
+  final String debtorId;
+  final String debtorName;
+  final String creditorId;
+  final String creditorName;
+  final double amount;
+  final bool isSettled;
+  final String paymentStatus;
+
+  const ExpenseSplitEdge({
+    required this.splitId,
+    required this.debtorId,
+    required this.debtorName,
+    required this.creditorId,
+    required this.creditorName,
+    required this.amount,
+    required this.isSettled,
+    this.paymentStatus = 'pending',
+  });
+
+  bool get debtorIsYou => debtorName == 'You';
+  bool get creditorIsYou => creditorName == 'You';
+  bool get involvesYou => debtorIsYou || creditorIsYou;
+}
+
+/// Full detail of a single group expense: the expense, its group name, the
+/// "who paid what" breakdown, and every debtor -> creditor settlement edge.
+class GroupExpenseDetail {
+  final Expense expense;
+  final String groupName;
+  final List<PayerContribution> payers;
+  final List<ExpenseSplitEdge> edges;
+
+  const GroupExpenseDetail({
+    required this.expense,
+    required this.groupName,
+    this.payers = const [],
+    this.edges = const [],
+  });
+}
+
 class CustomExpenseDetail {
   final Expense expense;
   final List<GuestSplit> guests;

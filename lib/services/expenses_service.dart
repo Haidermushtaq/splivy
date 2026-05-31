@@ -521,13 +521,14 @@ class ExpensesService {
         .toList();
   }
 
-  Future<List<Expense>> getGroupExpenses(String groupId) async {
-    final rows = await _client
-        .from('expenses')
-        .select()
-        .eq('group_id', groupId)
-        .eq('is_archived', false)
-        .order('created_at', ascending: false);
+  Future<List<Expense>> getGroupExpenses(
+    String groupId, {
+    bool includeArchived = false,
+  }) async {
+    var query =
+        _client.from('expenses').select().eq('group_id', groupId);
+    if (!includeArchived) query = query.eq('is_archived', false);
+    final rows = await query.order('created_at', ascending: false);
 
     final List<Expense> result = [];
     for (final e in rows as List) {
@@ -588,6 +589,98 @@ class ExpensesService {
     }
 
     return result;
+  }
+
+  /// Full detail of a single group expense: header info, the "who paid what"
+  /// breakdown, and every debtor -> creditor settlement edge (settled and
+  /// unsettled alike, so the in-expense offsetting history is visible).
+  Future<GroupExpenseDetail> getGroupExpenseDetail(String expenseId) async {
+    final e =
+        await _client.from('expenses').select().eq('id', expenseId).single();
+    final isMultiPayer = e['is_multi_payer'] as bool? ?? false;
+    final paidById = e['paid_by'] as String?;
+    final groupId = e['group_id'] as String?;
+
+    String groupName = 'Group';
+    if (groupId != null) {
+      final g = await _client
+          .from('groups')
+          .select('name')
+          .eq('id', groupId)
+          .maybeSingle();
+      groupName = g?['name'] as String? ?? 'Group';
+    }
+
+    final paidByName =
+        await _resolvePaidByName(expenseId, isMultiPayer, paidById);
+
+    final splitRows = await _client
+        .from('expense_splits')
+        .select('id, user_id, owed_to, amount, is_settled, payment_status')
+        .eq('expense_id', expenseId);
+
+    final ids = <String>{};
+    for (final s in splitRows as List) {
+      ids.add(s['user_id'] as String);
+      ids.add(s['owed_to'] as String);
+    }
+    final nameMap = <String, String>{};
+    if (ids.isNotEmpty) {
+      final profs = await _client
+          .from('profiles')
+          .select('id, full_name')
+          .inFilter('id', ids.toList());
+      for (final p in profs as List) {
+        nameMap[p['id'] as String] = p['full_name'] as String? ?? 'Unknown';
+      }
+    }
+
+    String nameOf(String id) => id == _userId ? 'You' : (nameMap[id] ?? 'Unknown');
+
+    final edges = splitRows.map((s) {
+      final debtorId = s['user_id'] as String;
+      final creditorId = s['owed_to'] as String;
+      return ExpenseSplitEdge(
+        splitId: s['id'] as String,
+        debtorId: debtorId,
+        debtorName: nameOf(debtorId),
+        creditorId: creditorId,
+        creditorName: nameOf(creditorId),
+        amount: (s['amount'] as num).toDouble(),
+        isSettled: s['is_settled'] as bool? ?? false,
+        paymentStatus: s['payment_status'] as String? ?? 'pending',
+      );
+    }).toList();
+
+    final payers = <PayerContribution>[];
+    if (isMultiPayer) {
+      final payerRows = await _client
+          .from('expense_payers')
+          .select('user_id, amount_paid')
+          .eq('expense_id', expenseId);
+      for (final p in payerRows as List) {
+        final uid = p['user_id'] as String;
+        final isYou = uid == _userId;
+        payers.add(PayerContribution(
+          name: nameOf(uid),
+          amount: (p['amount_paid'] as num).toDouble(),
+          isYou: isYou,
+        ));
+      }
+    } else {
+      payers.add(PayerContribution(
+        name: paidByName,
+        amount: (e['amount'] as num).toDouble(),
+        isYou: paidById == _userId,
+      ));
+    }
+
+    return GroupExpenseDetail(
+      expense: Expense.fromMap(e, paidByName: paidByName),
+      groupName: groupName,
+      payers: payers,
+      edges: edges,
+    );
   }
 
   Future<String> _resolvePaidByName(
@@ -804,14 +897,16 @@ class ExpensesService {
         .eq('user_id', userId);
   }
 
-  Future<List<CustomExpenseDetail>> getCustomExpenses() async {
-    final rows = await _client
+  Future<List<CustomExpenseDetail>> getCustomExpenses({
+    bool includeArchived = false,
+  }) async {
+    var query = _client
         .from('expenses')
         .select()
         .eq('paid_by', _userId)
-        .eq('is_custom', true)
-        .eq('is_archived', false)
-        .order('created_at', ascending: false);
+        .eq('is_custom', true);
+    if (!includeArchived) query = query.eq('is_archived', false);
+    final rows = await query.order('created_at', ascending: false);
 
     final List<CustomExpenseDetail> result = [];
     for (final e in rows as List) {

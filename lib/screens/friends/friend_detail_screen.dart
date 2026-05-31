@@ -355,6 +355,9 @@ class _BreakdownSheet extends StatelessWidget {
               );
             }
             final items = snap.data ?? [];
+            final outstanding =
+                items.where((e) => !e.isSettled).toList();
+            final history = items.where((e) => e.isSettled).toList();
             return ListView(
               controller: scrollController,
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
@@ -382,13 +385,20 @@ class _BreakdownSheet extends StatelessWidget {
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 24),
                     child: Center(
-                      child: Text('No unsettled expenses',
+                      child: Text('No expenses together yet',
                           style:
                               TextStyle(color: Colors.grey, fontSize: 14)),
                     ),
-                  )
-                else
-                  ...items.map((e) => _row(context, e)),
+                  ),
+                if (outstanding.isNotEmpty) ...[
+                  _sectionLabel(context, 'Outstanding'),
+                  ...outstanding.map((e) => _row(context, e)),
+                ],
+                if (history.isNotEmpty) ...[
+                  if (outstanding.isNotEmpty) const SizedBox(height: 12),
+                  _sectionLabel(context, 'Offsetting history'),
+                  ...history.map((e) => _row(context, e)),
+                ],
               ],
             );
           },
@@ -397,10 +407,28 @@ class _BreakdownSheet extends StatelessWidget {
     );
   }
 
+  Widget _sectionLabel(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Text(
+        text,
+        style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5),
+      ),
+    );
+  }
+
   Widget _row(BuildContext context, FriendExpense e) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final color = e.theyOweMe ? _accent : _red;
-    final label = e.theyOweMe ? 'Owes you' : 'You owe';
+    final color = e.isSettled
+        ? Colors.grey
+        : (e.theyOweMe ? _accent : _red);
+    final label = e.isSettled
+        ? (e.isNetted ? 'Auto-settled' : 'Settled')
+        : (e.theyOweMe ? 'Owes you' : 'You owe');
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -409,9 +437,11 @@ class _BreakdownSheet extends StatelessWidget {
             radius: 18,
             backgroundColor: color.withValues(alpha: 0.15),
             child: Icon(
-              e.theyOweMe
-                  ? Icons.arrow_downward_rounded
-                  : Icons.arrow_upward_rounded,
+              e.isSettled
+                  ? (e.isNetted ? Icons.swap_horiz_rounded : Icons.check_rounded)
+                  : (e.theyOweMe
+                      ? Icons.arrow_downward_rounded
+                      : Icons.arrow_upward_rounded),
               color: color,
               size: 18,
             ),
@@ -425,13 +455,34 @@ class _BreakdownSheet extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        color: onSurface,
+                        color: e.isSettled ? Colors.grey : onSurface,
                         fontSize: 14,
-                        fontWeight: FontWeight.w500)),
+                        fontWeight: FontWeight.w500,
+                        decoration: e.isSettled
+                            ? TextDecoration.lineThrough
+                            : null)),
                 const SizedBox(height: 2),
-                Text(_formatDate(e.date),
-                    style:
-                        const TextStyle(color: Colors.grey, fontSize: 12)),
+                Row(
+                  children: [
+                    Icon(
+                      e.groupName == null
+                          ? Icons.receipt_long_outlined
+                          : Icons.group_outlined,
+                      color: Colors.grey,
+                      size: 12,
+                    ),
+                    const SizedBox(width: 4),
+                    Flexible(
+                      child: Text(
+                        '${e.source} • ${_formatDate(e.date)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            color: Colors.grey, fontSize: 12),
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),

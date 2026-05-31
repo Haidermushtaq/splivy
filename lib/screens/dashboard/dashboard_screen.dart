@@ -327,10 +327,10 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
     // Ignore extra taps while a navigation is already in flight.
     if (_opening) return;
 
-    // Group expenses live inside their group screen.
+    // Open the full detail for this specific group expense.
     if (expense.groupId != null && !expense.isCustom) {
-      Navigator.of(context).pushNamed('/group-detail', arguments: {
-        'groupId': expense.groupId,
+      Navigator.of(context).pushNamed('/group-expense-detail', arguments: {
+        'expenseId': expense.id,
         'groupName': expense.groupName ?? 'Group',
       });
       return;

@@ -141,7 +141,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.settings_outlined),
-            onPressed: () {},
+            onPressed: _showGroupOptions,
           ),
         ],
       ),
@@ -253,14 +253,20 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
           CircleAvatar(
             radius: 26,
             backgroundColor: _accent,
-            child: Text(
-              member.fullName[0].toUpperCase(),
-              style: const TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
+            backgroundImage:
+                (member.avatarUrl != null && member.avatarUrl!.isNotEmpty)
+                    ? NetworkImage(member.avatarUrl!)
+                    : null,
+            child: (member.avatarUrl == null || member.avatarUrl!.isEmpty)
+                ? Text(
+                    member.fullName[0].toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  )
+                : null,
           ),
           const SizedBox(height: 6),
           Text(
@@ -385,6 +391,205 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showGroupOptions() {
+    final detail = ref.read(groupDetailProvider(widget.groupId)).value;
+    if (detail == null) return;
+    final isAdmin = detail.group.createdBy == _currentUserId;
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: cardColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  isAdmin ? 'Manage Members' : 'Group',
+                  style: TextStyle(
+                      color: onSurface,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (isAdmin)
+                ...detail.members.map((m) {
+                  final isSelf = m.id == _currentUserId;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: _accent,
+                      backgroundImage: (m.avatarUrl != null &&
+                              m.avatarUrl!.isNotEmpty)
+                          ? NetworkImage(m.avatarUrl!)
+                          : null,
+                      child: (m.avatarUrl == null || m.avatarUrl!.isEmpty)
+                          ? Text(
+                              m.fullName[0].toUpperCase(),
+                              style: const TextStyle(
+                                  color: Colors.black,
+                                  fontWeight: FontWeight.bold),
+                            )
+                          : null,
+                    ),
+                    title: Text(m.fullName,
+                        style: TextStyle(color: onSurface)),
+                    subtitle: Text(
+                      isSelf ? 'You · Admin' : '@${m.username}',
+                      style: const TextStyle(
+                          color: Colors.grey, fontSize: 12),
+                    ),
+                    trailing: isSelf
+                        ? null
+                        : IconButton(
+                            icon: const Icon(Icons.person_remove_outlined,
+                                color: _red),
+                            onPressed: () {
+                              Navigator.of(ctx).pop();
+                              _confirmRemoveMember(m);
+                            },
+                          ),
+                  );
+                })
+              else
+                ListTile(
+                  leading: const Icon(Icons.logout, color: _red),
+                  title: const Text('Leave group',
+                      style: TextStyle(color: _red)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _confirmLeaveGroup();
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmRemoveMember(GroupMember member) {
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Remove member',
+            style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Remove ${member.fullName} from this group? '
+          'Existing expenses stay unchanged.',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _red,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              Navigator.of(ctx).pop();
+              try {
+                await GroupsService()
+                    .removeMember(widget.groupId, member.id);
+                ref.invalidate(groupDetailProvider(widget.groupId));
+                messenger.showSnackBar(SnackBar(
+                  content: Text('${member.fullName} removed'),
+                  backgroundColor: _accent,
+                  behavior: SnackBarBehavior.floating,
+                ));
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(
+                  content:
+                      Text(e.toString().replaceFirst('Exception: ', '')),
+                  backgroundColor: _red,
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+            },
+            child: const Text('Remove',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmLeaveGroup() {
+    final cardColor = Theme.of(context).cardColor;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Leave group',
+            style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Are you sure you want to leave this group?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _red,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final navigator = Navigator.of(context);
+              Navigator.of(ctx).pop();
+              try {
+                await GroupsService().leaveGroup(widget.groupId);
+                ref.invalidate(userGroupsStreamProvider);
+                navigator.pop();
+                messenger.showSnackBar(const SnackBar(
+                  content: Text('You left the group'),
+                  backgroundColor: _accent,
+                  behavior: SnackBarBehavior.floating,
+                ));
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(
+                  content:
+                      Text(e.toString().replaceFirst('Exception: ', '')),
+                  backgroundColor: _red,
+                  behavior: SnackBarBehavior.floating,
+                ));
+              }
+            },
+            child: const Text('Leave',
+                style: TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }
@@ -526,7 +731,16 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       margin: const EdgeInsets.only(bottom: 10),
       shape:
           RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).pushNamed(
+          '/group-expense-detail',
+          arguments: {
+            'expenseId': expense.id,
+            'groupName': widget.groupName,
+          },
+        ),
+        child: Padding(
         padding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -580,6 +794,7 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

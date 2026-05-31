@@ -22,7 +22,7 @@ class GroupsService {
     return Group.fromMap(row, memberCount: 1);
   }
 
-  Future<List<Group>> getUserGroups() async {
+  Future<List<Group>> getUserGroups({bool includeArchived = false}) async {
     final memberships = await _client
         .from('group_members')
         .select('group_id')
@@ -33,12 +33,9 @@ class GroupsService {
 
     if (groupIds.isEmpty) return [];
 
-    final groups = await _client
-        .from('groups')
-        .select()
-        .inFilter('id', groupIds)
-        .eq('is_archived', false)
-        .order('created_at', ascending: false);
+    var query = _client.from('groups').select().inFilter('id', groupIds);
+    if (!includeArchived) query = query.eq('is_archived', false);
+    final groups = await query.order('created_at', ascending: false);
 
     final result = <Group>[];
     for (final g in groups as List) {
@@ -123,13 +120,14 @@ class GroupsService {
     if (memberIds.isNotEmpty) {
       final profiles = await _client
           .from('profiles')
-          .select('id, full_name, username')
+          .select('id, full_name, username, avatar_url')
           .inFilter('id', memberIds);
       members = (profiles as List)
           .map((p) => GroupMember(
                 id: p['id'] as String,
                 fullName: p['full_name'] as String,
                 username: p['username'] as String,
+                avatarUrl: p['avatar_url'] as String?,
               ))
           .toList();
     }
@@ -205,6 +203,34 @@ class GroupsService {
       fullName: profile['full_name'] as String,
       username: profile['username'] as String,
     );
+  }
+
+  /// Removes [userId] from the group. Only the group creator may remove other
+  /// members (enforced by RLS); a permission error is surfaced as a readable
+  /// message.
+  Future<void> removeMember(String groupId, String userId) async {
+    try {
+      await _client
+          .from('group_members')
+          .delete()
+          .eq('group_id', groupId)
+          .eq('user_id', userId);
+    } on PostgrestException catch (e) {
+      final msg = e.message.toLowerCase();
+      if (msg.contains('row-level security') || msg.contains('policy')) {
+        throw Exception('Only the group creator can remove members');
+      }
+      rethrow;
+    }
+  }
+
+  /// The current user leaves [groupId] by deleting their own membership row.
+  Future<void> leaveGroup(String groupId) async {
+    await _client
+        .from('group_members')
+        .delete()
+        .eq('group_id', groupId)
+        .eq('user_id', _userId);
   }
 
   Future<void> deleteGroup(String groupId) async {
