@@ -346,9 +346,12 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
           all.where((d) => d.expense.id == expense.id).firstOrNull;
       if (!mounted) return;
       if (detail == null) {
-        messenger.showSnackBar(
-          const SnackBar(content: Text('Expense details not available.')),
-        );
+        // Non-creators don't have this expense in their creator-only custom
+        // list, but they can still view it through the generic detail screen.
+        navigator.pushNamed('/group-expense-detail', arguments: {
+          'expenseId': expense.id,
+          'groupName': 'One-time',
+        });
         return;
       }
       await navigator.push(MaterialPageRoute(

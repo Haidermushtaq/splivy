@@ -3,7 +3,6 @@ import '../../models/expense_model.dart';
 import '../../models/group_model.dart';
 import '../../services/expenses_service.dart';
 import '../../services/groups_service.dart';
-import '../expenses/one_time_expense_detail_screen.dart';
 
 const _accent = Color(0xFF00D4AA);
 
@@ -141,7 +140,8 @@ Widget _empty(BuildContext context, IconData icon, String text) => Center(
       ),
     );
 
-/// All one-time expenses the user created, archived included.
+/// Every one-time expense the user takes part in (created or just a
+/// participant), archived included.
 class _OneTimeHistoryScreen extends StatefulWidget {
   const _OneTimeHistoryScreen();
 
@@ -150,17 +150,17 @@ class _OneTimeHistoryScreen extends StatefulWidget {
 }
 
 class _OneTimeHistoryScreenState extends State<_OneTimeHistoryScreen> {
-  late Future<List<CustomExpenseDetail>> _future;
+  late Future<List<RecentExpense>> _future;
 
   @override
   void initState() {
     super.initState();
-    _future = ExpensesService().getCustomExpenses(includeArchived: true);
+    _future = ExpensesService().getOneTimeHistory(includeArchived: true);
   }
 
   void _reload() {
     setState(() {
-      _future = ExpensesService().getCustomExpenses(includeArchived: true);
+      _future = ExpensesService().getOneTimeHistory(includeArchived: true);
     });
   }
 
@@ -169,7 +169,7 @@ class _OneTimeHistoryScreenState extends State<_OneTimeHistoryScreen> {
     final onSurface = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
       appBar: AppBar(elevation: 0, title: const Text('One-time Expenses')),
-      body: FutureBuilder<List<CustomExpenseDetail>>(
+      body: FutureBuilder<List<RecentExpense>>(
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
@@ -187,40 +187,32 @@ class _OneTimeHistoryScreenState extends State<_OneTimeHistoryScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               itemCount: items.length,
               itemBuilder: (context, i) {
-                final detail = items[i];
-                final e = detail.expense;
+                final e = items[i];
                 return Card(
                   margin: const EdgeInsets.only(bottom: 12),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
                   child: ListTile(
-                    onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) =>
-                          OneTimeExpenseDetailScreen(detail: detail),
-                    )),
+                    onTap: () => Navigator.of(context).pushNamed(
+                      '/group-expense-detail',
+                      arguments: {
+                        'expenseId': e.id,
+                        'groupName': 'One-time',
+                      },
+                    ),
                     title: Text(
                       e.title,
                       style: TextStyle(
                           color: onSurface, fontWeight: FontWeight.w600),
                     ),
                     subtitle: Text(
-                      _formatDate(e.createdAt),
+                      '${e.paidByName} • ${_formatDate(e.createdAt)}',
                       style: const TextStyle(color: Colors.grey, fontSize: 12),
                     ),
-                    trailing: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'PKR ${e.amount.toStringAsFixed(0)}',
-                          style: const TextStyle(
-                              color: _accent, fontWeight: FontWeight.bold),
-                        ),
-                        if (detail.allSettled)
-                          const Text('Settled',
-                              style:
-                                  TextStyle(color: Colors.grey, fontSize: 11)),
-                      ],
+                    trailing: Text(
+                      'PKR ${e.amount.toStringAsFixed(0)}',
+                      style: const TextStyle(
+                          color: _accent, fontWeight: FontWeight.bold),
                     ),
                   ),
                 );

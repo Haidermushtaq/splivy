@@ -308,6 +308,11 @@ class _GroupExpenseDetailScreenState extends State<GroupExpenseDetailScreen> {
                   edge.paymentStatus == 'netted' ? 'Auto-settled' : 'Settled',
                   style: const TextStyle(color: Colors.grey, fontSize: 11),
                 ),
+              if (!edge.isSettled && edge.wasOffset)
+                Text(
+                  'PKR ${edge.amountPaid.toStringAsFixed(0)} offset from PKR ${edge.originalAmount.toStringAsFixed(0)}',
+                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                ),
             ],
           ),
         ],

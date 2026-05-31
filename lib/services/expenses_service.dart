@@ -601,7 +601,7 @@ class ExpensesService {
     final paidById = e['paid_by'] as String?;
     final groupId = e['group_id'] as String?;
 
-    String groupName = 'Group';
+    String groupName = groupId == null ? 'One-time' : 'Group';
     if (groupId != null) {
       final g = await _client
           .from('groups')
@@ -616,7 +616,8 @@ class ExpensesService {
 
     final splitRows = await _client
         .from('expense_splits')
-        .select('id, user_id, owed_to, amount, is_settled, payment_status')
+        .select(
+            'id, user_id, owed_to, amount, amount_paid, is_settled, payment_status')
         .eq('expense_id', expenseId);
 
     final ids = <String>{};
@@ -649,6 +650,7 @@ class ExpensesService {
         amount: (s['amount'] as num).toDouble(),
         isSettled: s['is_settled'] as bool? ?? false,
         paymentStatus: s['payment_status'] as String? ?? 'pending',
+        amountPaid: (s['amount_paid'] as num?)?.toDouble() ?? 0,
       );
     }).toList();
 
@@ -825,7 +827,7 @@ class ExpensesService {
     if (counterpartIds.isNotEmpty) {
       final profiles = await _client
           .from('profiles')
-          .select('id, full_name, phone')
+          .select('id, full_name, phone, avatar_url')
           .inFilter('id', counterpartIds);
       for (final p in profiles as List) {
         profileMap[p['id'] as String] = p as Map<String, dynamic>;
@@ -864,6 +866,7 @@ class ExpensesService {
         paymentStatus: s['payment_status'] as String? ?? 'pending',
         paymentProofUrl: s['payment_proof_url'] as String?,
         paymentMethod: s['payment_method'] as String?,
+        avatarUrl: creditor?['avatar_url'] as String?,
       ));
     }
 
@@ -883,6 +886,7 @@ class ExpensesService {
         paymentStatus: s['payment_status'] as String? ?? 'pending',
         paymentProofUrl: s['payment_proof_url'] as String?,
         paymentMethod: s['payment_method'] as String?,
+        avatarUrl: debtor?['avatar_url'] as String?,
       ));
     }
 
@@ -1103,6 +1107,20 @@ class ExpensesService {
     return _loadExpenseFeed(archived: true, limit: 100);
   }
 
+  /// One-time (non-group) expenses the current user participates in — whether
+  /// they created the bill or merely appear on a split — newest first. Powers
+  /// the History → One-time list so non-creators see their bills too, not just
+  /// the ones they paid for.
+  Future<List<RecentExpense>> getOneTimeHistory({
+    bool includeArchived = false,
+  }) async {
+    return _loadExpenseFeed(
+      archived: includeArchived ? null : false,
+      limit: 200,
+      oneTimeOnly: true,
+    );
+  }
+
   Future<void> unarchiveExpense(String expenseId) async {
     await _client
         .from('expenses')
@@ -1115,14 +1133,14 @@ class ExpensesService {
   /// by recency, then enriches each with payer name, group name and the user's
   /// share.
   Future<List<RecentExpense>> _loadExpenseFeed({
-    required bool archived,
+    required bool? archived,
     required int limit,
+    bool oneTimeOnly = false,
   }) async {
-    final paid = await _client
-        .from('expenses')
-        .select()
-        .eq('paid_by', _userId)
-        .eq('is_archived', archived);
+    var paidQuery =
+        _client.from('expenses').select().eq('paid_by', _userId);
+    if (archived != null) paidQuery = paidQuery.eq('is_archived', archived);
+    final paid = await paidQuery;
 
     // Include expenses where the user is either the debtor (user_id) or the
     // creditor (owed_to) so a friend who is owed money still sees the expense.
@@ -1140,14 +1158,19 @@ class ExpensesService {
       byId[e['id'] as String] = e as Map<String, dynamic>;
     }
     if (splitIds.isNotEmpty) {
-      final fromSplits = await _client
-          .from('expenses')
-          .select()
-          .inFilter('id', splitIds)
-          .eq('is_archived', archived);
+      var splitQuery =
+          _client.from('expenses').select().inFilter('id', splitIds);
+      if (archived != null) {
+        splitQuery = splitQuery.eq('is_archived', archived);
+      }
+      final fromSplits = await splitQuery;
       for (final e in fromSplits as List) {
         byId[e['id'] as String] = e as Map<String, dynamic>;
       }
+    }
+
+    if (oneTimeOnly) {
+      byId.removeWhere((_, e) => e['group_id'] != null);
     }
 
     final expenses = byId.values.toList()
