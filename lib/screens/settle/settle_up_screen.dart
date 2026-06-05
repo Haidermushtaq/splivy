@@ -649,12 +649,17 @@ class _SettleUpScreenState extends ConsumerState<SettleUpScreen> {
             style: TextStyle(color: Colors.grey, fontSize: 14),
           ),
           const SizedBox(height: 8),
-          Text(
-            'PKR ${totalToSettle.toStringAsFixed(0)}',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'PKR ${totalToSettle.toStringAsFixed(0)}',
+              maxLines: 1,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 4),

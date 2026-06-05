@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/preferences_service.dart';
+import '../utils/responsive.dart';
 import '../widgets/lottie_widget.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -67,44 +68,49 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
+    final logoSize = Responsive.screenWidth(context) * 0.4;
     return Scaffold(
-      body: FadeTransition(
-        opacity: _fadeAnimation,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Spacer(),
-              const LottieWidget(
-                assetPath: 'assets/animations/wallet.json',
-                width: 150,
-                height: 150,
-                repeat: true,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                'Splivy',
-                style: TextStyle(
-                  color: onSurface,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.2,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _fadeAnimation,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Spacer(),
+                LottieWidget(
+                  assetPath: 'assets/animations/wallet.json',
+                  width: logoSize,
+                  height: logoSize,
+                  repeat: true,
                 ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Split smart. Settle easy.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
-              const Spacer(),
-              const LottieWidget(
-                assetPath: 'assets/animations/loading.json',
-                width: 100,
-                height: 100,
-                repeat: true,
-              ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 24),
+                Text(
+                  'Splivy',
+                  style: TextStyle(
+                    color: onSurface,
+                    fontSize: Responsive.fontSize(context, 36),
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'Split smart. Settle easy.',
+                  style: TextStyle(
+                      color: Colors.grey,
+                      fontSize: Responsive.fontSize(context, 16)),
+                ),
+                const Spacer(),
+                const LottieWidget(
+                  assetPath: 'assets/animations/loading.json',
+                  width: 100,
+                  height: 100,
+                  repeat: true,
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../services/auth_service.dart';
+import '../../utils/responsive.dart';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -164,7 +165,8 @@ class _SignupScreenState extends State<SignupScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: const EdgeInsets.symmetric(horizontal: 28).copyWith(
+              bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Form(
             key: _formKey,
             autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -182,7 +184,7 @@ class _SignupScreenState extends State<SignupScreen> {
                       'Splivy',
                       style: TextStyle(
                         color: onSurface,
-                        fontSize: 18,
+                        fontSize: Responsive.fontSize(context, 18),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -195,7 +197,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   'Create Account',
                   style: TextStyle(
                     color: onSurface,
-                    fontSize: 28,
+                    fontSize: Responsive.fontSize(context, 28),
                     fontWeight: FontWeight.bold,
                   ),
                 ),

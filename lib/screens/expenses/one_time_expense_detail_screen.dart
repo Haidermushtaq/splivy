@@ -122,9 +122,13 @@ class OneTimeExpenseDetailScreen extends StatelessWidget {
               const Icon(Icons.account_balance_wallet_outlined,
                   color: Colors.grey, size: 16),
               const SizedBox(width: 6),
-              Text(
-                'Paid by ${e.paidByName}',
-                style: const TextStyle(color: Colors.grey, fontSize: 13),
+              Flexible(
+                child: Text(
+                  'Paid by ${e.paidByName}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.grey, fontSize: 13),
+                ),
               ),
             ],
           ),
