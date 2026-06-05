@@ -1,0 +1,10 @@
+Splivy v1.0.0 — Initial Release
+
+What's new:
+- Split expenses with friends and groups
+- Real-time expense sync
+- Pay via JazzCash, Easypaisa, SadaPay
+- Upload payment screenshots as proof
+- Smart reminders for pending payments
+- Dark and light mode
+- Built for Pakistan
