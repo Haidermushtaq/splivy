@@ -266,7 +266,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: _accent, size: 28),
                     const SizedBox(width: 8),
                     Text(
-                      'FairShare',
+                      'Splivy',
                       style: TextStyle(
                         color: onSurface,
                         fontSize: 18,

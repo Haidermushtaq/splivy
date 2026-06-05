@@ -1,0 +1,5 @@
+project_id = "stijntlssaeypupaenqz"
+
+[auth.email.template.confirmation]
+subject = "Welcome to Splivy! Verify your email 🎉"
+content_path = "./supabase/templates/confirm_signup.html"

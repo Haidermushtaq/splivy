@@ -255,7 +255,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
           _SettingsTile(
             icon: Icons.info_outline,
-            label: 'About FairShare',
+            label: 'About Splivy',
             onTap: _showAboutDialog,
           ),
           const Divider(color: Colors.white12, height: 1, indent: 56, endIndent: 16),
@@ -682,7 +682,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         backgroundColor: cardColor,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text(
-          'About FairShare',
+          'About Splivy',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: Column(
@@ -693,7 +693,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 color: _accent, size: 48),
             const SizedBox(height: 8),
             const Text(
-              'FairShare',
+              'Splivy',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -830,8 +830,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.only(left: 26),
               child: GestureDetector(
                 onTap: () => launchUrl(
-                    Uri.parse('https://github.com/Haidermushtaq/fairshare/issues')),
-                child: const Text('github.com/Haidermushtaq/fairshare',
+                    Uri.parse('https://github.com/Haidermushtaq/splivy/issues')),
+                child: const Text('github.com/Haidermushtaq/splivy',
                     style: TextStyle(color: _accent, fontSize: 13)),
               ),
             ),

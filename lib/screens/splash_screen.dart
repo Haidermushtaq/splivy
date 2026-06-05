@@ -83,7 +83,7 @@ class _SplashScreenState extends State<SplashScreen>
               ),
               const SizedBox(height: 24),
               Text(
-                'FairShare',
+                'Splivy',
                 style: TextStyle(
                   color: onSurface,
                   fontSize: 36,

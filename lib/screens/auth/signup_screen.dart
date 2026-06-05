@@ -179,7 +179,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         color: _accent, size: 28),
                     const SizedBox(width: 8),
                     Text(
-                      'FairShare',
+                      'Splivy',
                       style: TextStyle(
                         color: onSurface,
                         fontSize: 18,
@@ -201,7 +201,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 6),
                 const Text(
-                  'Join FairShare today',
+                  'Join Splivy today',
                   style: TextStyle(color: Colors.grey, fontSize: 14),
                 ),
 

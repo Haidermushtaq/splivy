@@ -40,7 +40,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         shape:
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Text(
-          'Exit FairShare?',
+          'Exit Splivy?',
           style: TextStyle(
               color: Theme.of(ctx).colorScheme.onSurface,
               fontWeight: FontWeight.bold),
@@ -129,7 +129,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Text(
-            'FairShare',
+            'Splivy',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           Text(

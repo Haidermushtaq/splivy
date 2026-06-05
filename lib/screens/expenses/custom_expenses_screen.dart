@@ -128,8 +128,8 @@ class _ExpenseCard extends StatelessWidget {
     final waPhone = '92${rawPhone.substring(1)}';
     final amt = guest.amount.abs().toStringAsFixed(0);
     final body = guest.amount >= 0
-        ? 'Hi ${guest.guestName}, you owe PKR $amt for "$expenseTitle". Please settle up! – FairShare'
-        : 'Hi ${guest.guestName}, I owe you PKR $amt for "$expenseTitle". Let me know how to pay you. – FairShare';
+        ? 'Hi ${guest.guestName}, you owe PKR $amt for "$expenseTitle". Please settle up! – Splivy'
+        : 'Hi ${guest.guestName}, I owe you PKR $amt for "$expenseTitle". Let me know how to pay you. – Splivy';
     final msg = Uri.encodeComponent(body);
     final url = Uri.parse('https://wa.me/$waPhone?text=$msg');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
