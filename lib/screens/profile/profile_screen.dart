@@ -808,8 +808,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.only(left: 26),
               child: GestureDetector(
                 onTap: () => launchUrl(
-                    Uri.parse('mailto:fairsharee.support@gmail.com')),
-                child: const Text('fairsharee.support@gmail.com',
+                    Uri.parse('mailto:splivy.support@gmail.com')),
+                child: const Text('splivy.support@gmail.com',
                     style: TextStyle(color: _accent, fontSize: 13)),
               ),
             ),
