@@ -64,6 +64,7 @@ flutter_launcher_icons:
   image_path: "assets/images/splivy_logo.png"
   adaptive_icon_background: "#1A1A2E"
   adaptive_icon_foreground: "assets/images/splivy_logo.png"
+  remove_alpha_ios: true
   min_sdk_android: 21
 
 # For information on the generic Dart part of this file, see the
