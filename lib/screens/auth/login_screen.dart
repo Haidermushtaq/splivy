@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../providers/app_state_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/preferences_service.dart';
+import '../../utils/responsive.dart';
 import '../../widgets/lottie_widget.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -251,7 +252,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28),
+          padding: EdgeInsets.symmetric(
+              horizontal: 28,
+              vertical: 0).copyWith(
+              bottom: MediaQuery.of(context).viewInsets.bottom),
           child: Form(
             key: _formKey,
             autovalidateMode: AutovalidateMode.onUserInteraction,
@@ -269,7 +273,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       'Splivy',
                       style: TextStyle(
                         color: onSurface,
-                        fontSize: 18,
+                        fontSize: Responsive.fontSize(context, 18),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -282,7 +286,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   'Welcome Back',
                   style: TextStyle(
                     color: onSurface,
-                    fontSize: 28,
+                    fontSize: Responsive.fontSize(context, 28),
                     fontWeight: FontWeight.bold,
                   ),
                 ),

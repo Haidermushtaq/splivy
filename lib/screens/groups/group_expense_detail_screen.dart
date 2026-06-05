@@ -174,19 +174,33 @@ class _GroupExpenseDetailScreenState extends State<GroupExpenseDetailScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              const Icon(Icons.account_balance_wallet_outlined,
-                  color: Colors.grey, size: 16),
-              const SizedBox(width: 6),
-              Text('Paid by ${e.paidByName}',
-                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
-              const SizedBox(width: 12),
-              const Icon(Icons.category_outlined,
-                  color: Colors.grey, size: 16),
-              const SizedBox(width: 6),
-              Text(e.category,
-                  style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.account_balance_wallet_outlined,
+                      color: Colors.grey, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Paid by ${e.paidByName}',
+                      style:
+                          const TextStyle(color: Colors.grey, fontSize: 13)),
+                ],
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.category_outlined,
+                      color: Colors.grey, size: 16),
+                  const SizedBox(width: 6),
+                  Text(e.category,
+                      style:
+                          const TextStyle(color: Colors.grey, fontSize: 13)),
+                ],
+              ),
             ],
           ),
           if (e.note != null && e.note!.isNotEmpty) ...[

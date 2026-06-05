@@ -15,6 +15,7 @@ import '../../services/expenses_service.dart';
 import '../expenses/one_time_expense_detail_screen.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/skeleton_loader.dart';
+import '../../utils/responsive.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -188,6 +189,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return BottomNavigationBar(
       currentIndex: _currentIndex,
       onTap: (index) => setState(() => _currentIndex = index),
+      type: BottomNavigationBarType.fixed,
+      selectedFontSize: 12,
+      unselectedFontSize: 10,
+      iconSize: 24,
       items: [
         const BottomNavigationBarItem(
             icon: Icon(Icons.home_outlined), label: 'Home'),
@@ -622,14 +627,19 @@ class _SummaryCardState extends ConsumerState<_SummaryCard>
               duration: const Duration(milliseconds: 400),
               transitionBuilder: (child, anim) =>
                   FadeTransition(opacity: anim, child: child),
-              child: Text(
-                netText,
-                key: ValueKey(netText),
-                style: TextStyle(
-                  color: netColor,
-                  fontSize: 36,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  netText,
+                  key: ValueKey(netText),
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: netColor,
+                    fontSize: Responsive.fontSize(context, 36),
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
                 ),
               ),
             ),
@@ -843,26 +853,41 @@ class _QuickActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _ActionButton(
-          icon: Icons.add_circle_outline,
-          label: 'Add Expense',
-          onTap: () => _showAddExpenseChooser(context),
-        ),
-        _ActionButton(
-          icon: Icons.check_circle_outline,
-          label: 'Settle Up',
-          onTap: () => Navigator.of(context).pushNamed('/settle-up'),
-        ),
-        _ActionButton(
-          icon: Icons.receipt_long_outlined,
-          label: 'One-time',
-          onTap: () =>
-              Navigator.of(context).pushNamed('/custom-expenses'),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Three buttons share the row evenly with small gaps; on a narrow
+        // viewport they shrink instead of overflowing, and wrap if they
+        // can no longer fit at a sensible minimum width.
+        const spacing = 12.0;
+        final perButton = (constraints.maxWidth - spacing * 2) / 3;
+        final buttonWidth = perButton < 88 ? 100.0 : perButton;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          alignment: WrapAlignment.spaceBetween,
+          children: [
+            _ActionButton(
+              width: buttonWidth,
+              icon: Icons.add_circle_outline,
+              label: 'Add Expense',
+              onTap: () => _showAddExpenseChooser(context),
+            ),
+            _ActionButton(
+              width: buttonWidth,
+              icon: Icons.check_circle_outline,
+              label: 'Settle Up',
+              onTap: () => Navigator.of(context).pushNamed('/settle-up'),
+            ),
+            _ActionButton(
+              width: buttonWidth,
+              icon: Icons.receipt_long_outlined,
+              label: 'One-time',
+              onTap: () =>
+                  Navigator.of(context).pushNamed('/custom-expenses'),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -871,6 +896,7 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
+  final double width;
 
   static const _accent = Color(0xFF00D4AA);
 
@@ -878,6 +904,7 @@ class _ActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
+    this.width = 100,
   });
 
   @override
@@ -885,7 +912,7 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 100,
+        width: width,
         padding:
             const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
         decoration: BoxDecoration(
