@@ -1095,6 +1095,30 @@ class ExpensesService {
     await _client.from('expenses').delete().eq('id', expenseId);
   }
 
+  /// Captures an expense row plus its splits so a delete can be undone by
+  /// re-inserting the exact same records (ids preserved).
+  Future<Map<String, dynamic>> getExpenseSnapshot(String expenseId) async {
+    final expense =
+        await _client.from('expenses').select().eq('id', expenseId).single();
+    final splits = await _client
+        .from('expense_splits')
+        .select()
+        .eq('expense_id', expenseId);
+    return {
+      'expense': expense,
+      'splits': (splits as List).cast<Map<String, dynamic>>(),
+    };
+  }
+
+  /// Re-inserts an expense and its splits from a [getExpenseSnapshot] result.
+  Future<void> restoreExpenseSnapshot(Map<String, dynamic> snapshot) async {
+    await _client.from('expenses').insert(snapshot['expense']);
+    final splits = (snapshot['splits'] as List).cast<Map<String, dynamic>>();
+    if (splits.isNotEmpty) {
+      await _client.from('expense_splits').insert(splits);
+    }
+  }
+
   /// Recent expenses the current user is part of (as payer or as a split
   /// participant), newest first, capped at 20. Used by the dashboard activity
   /// feed.
