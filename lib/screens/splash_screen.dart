@@ -68,7 +68,6 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final onSurface = Theme.of(context).colorScheme.onSurface;
-    final logoSize = Responsive.screenWidth(context) * 0.4;
     return Scaffold(
       body: SafeArea(
         child: FadeTransition(
@@ -78,11 +77,10 @@ class _SplashScreenState extends State<SplashScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const Spacer(),
-                LottieWidget(
-                  assetPath: 'assets/animations/wallet.json',
-                  width: logoSize,
-                  height: logoSize,
-                  repeat: true,
+                Image.asset(
+                  'assets/images/splivy_logo.png',
+                  width: 150,
+                  height: 150,
                 ),
                 const SizedBox(height: 24),
                 Text(

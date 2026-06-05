@@ -98,6 +98,25 @@ class _AppDrawerState extends State<AppDrawer> {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  Image.asset(
+                    'assets/images/splivy_logo.png',
+                    width: 36,
+                    height: 36,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'Splivy',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
               CircleAvatar(
                 radius: 36,
                 backgroundColor: Colors.black45,
@@ -290,7 +309,11 @@ class _AppDrawerState extends State<AppDrawer> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            const Icon(Icons.account_balance_wallet_rounded, color: _accent, size: 24),
+            Image.asset(
+              'assets/images/splivy_logo.png',
+              width: 60,
+              height: 60,
+            ),
             const SizedBox(width: 10),
             Text(
               'Splivy',

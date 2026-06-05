@@ -87,7 +87,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _pageController,
                 onPageChanged: (i) => setState(() => _currentPage = i),
                 itemCount: _slides.length,
-                itemBuilder: (_, i) => _SlideView(slide: _slides[i]),
+                itemBuilder: (_, i) =>
+                    _SlideView(slide: _slides[i], showLogo: i == 0),
               ),
             ),
 
@@ -183,8 +184,9 @@ class _Slide {
 
 class _SlideView extends StatelessWidget {
   final _Slide slide;
+  final bool showLogo;
 
-  const _SlideView({required this.slide});
+  const _SlideView({required this.slide, this.showLogo = false});
 
   @override
   Widget build(BuildContext context) {
@@ -194,6 +196,14 @@ class _SlideView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          if (showLogo) ...[
+            Image.asset(
+              'assets/images/splivy_logo.png',
+              width: 100,
+              height: 100,
+            ),
+            const SizedBox(height: 24),
+          ],
           LottieWidget(
             assetPath: slide.animation,
             width: 240,
