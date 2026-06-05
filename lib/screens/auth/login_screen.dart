@@ -266,8 +266,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                 Row(
                   children: [
-                    const Icon(Icons.account_balance_wallet_rounded,
-                        color: _accent, size: 28),
+                    Image.asset(
+                      'assets/images/splivy_logo.png',
+                      width: 80,
+                      height: 80,
+                    ),
                     const SizedBox(width: 8),
                     Text(
                       'Splivy',
