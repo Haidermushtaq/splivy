@@ -5,8 +5,11 @@ import '../../models/group_model.dart';
 import '../../models/expense_model.dart';
 import '../../providers/groups_provider.dart';
 import '../../providers/realtime_provider.dart';
+import '../../providers/expenses_provider.dart';
 import '../../services/groups_service.dart';
 import '../../services/notification_service.dart';
+import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class GroupDetailScreen extends ConsumerStatefulWidget {
   final String groupName;
@@ -475,6 +478,19 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                     _confirmLeaveGroup();
                   },
                 ),
+              if (isAdmin) ...[
+                const Divider(color: Colors.white12),
+                ListTile(
+                  leading: const Icon(Icons.delete_forever_outlined,
+                      color: _red),
+                  title: const Text('Delete group',
+                      style: TextStyle(color: _red)),
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _confirmDeleteGroup();
+                  },
+                ),
+              ],
             ],
           ),
         ),
@@ -538,60 +554,38 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
     );
   }
 
-  void _confirmLeaveGroup() {
-    final cardColor = Theme.of(context).cardColor;
-    final onSurface = Theme.of(context).colorScheme.onSurface;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Leave group',
-            style: TextStyle(color: onSurface, fontWeight: FontWeight.bold)),
-        content: const Text(
-          'Are you sure you want to leave this group?',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _red,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () async {
-              final messenger = ScaffoldMessenger.of(context);
-              final navigator = Navigator.of(context);
-              Navigator.of(ctx).pop();
-              try {
-                await GroupsService().leaveGroup(widget.groupId);
-                ref.invalidate(userGroupsStreamProvider);
-                navigator.pop();
-                messenger.showSnackBar(const SnackBar(
-                  content: Text('You left the group'),
-                  backgroundColor: _accent,
-                  behavior: SnackBarBehavior.floating,
-                ));
-              } catch (e) {
-                messenger.showSnackBar(SnackBar(
-                  content:
-                      Text(e.toString().replaceFirst('Exception: ', '')),
-                  backgroundColor: _red,
-                  behavior: SnackBarBehavior.floating,
-                ));
-              }
-            },
-            child: const Text('Leave',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _confirmLeaveGroup() async {
+    final groupName =
+        ref.read(groupDetailProvider(widget.groupId)).value?.group.name ??
+            'this group';
+    final navigator = Navigator.of(context);
+    final confirmed = await showLeaveGroupDialog(context, groupName);
+    if (confirmed != true) return;
+    try {
+      await GroupsService().leaveGroup(widget.groupId);
+      ref.invalidate(userGroupsStreamProvider);
+      navigator.pop();
+      if (mounted) ErrorHandler.showSuccess(context, 'You left $groupName');
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+    }
+  }
+
+  Future<void> _confirmDeleteGroup() async {
+    final groupName =
+        ref.read(groupDetailProvider(widget.groupId)).value?.group.name ??
+            'this group';
+    final navigator = Navigator.of(context);
+    final confirmed = await showDeleteGroupDialog(context, groupName);
+    if (confirmed != true) return;
+    try {
+      await GroupsService().deleteGroup(widget.groupId);
+      ref.invalidate(userGroupsStreamProvider);
+      navigator.pop();
+      if (mounted) ErrorHandler.showSuccess(context, '$groupName deleted');
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+    }
   }
 
   Widget _buildBalanceCard(double netBalance) {
@@ -686,6 +680,29 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
       initialItemCount: _expenses.length,
       itemBuilder: (context, index, animation) {
         if (index >= _expenses.length) return const SizedBox.shrink();
+        final expense = _expenses[index];
+        Widget card = _buildExpenseCard(expense);
+        // Only the payer can swipe to delete their own expense.
+        if (expense.paidBy == _currentUserId) {
+          card = Dismissible(
+            key: Key(expense.id),
+            direction: DismissDirection.endToStart,
+            background: Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                color: _red,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.centerRight,
+              padding: const EdgeInsets.only(right: 20),
+              child: const Icon(Icons.delete, color: Colors.white),
+            ),
+            confirmDismiss: (_) =>
+                showDeleteDialog(context, expense.title).then((v) => v == true),
+            onDismissed: (_) => _deleteGroupExpense(expense),
+            child: card,
+          );
+        }
         return SlideTransition(
           position: Tween<Offset>(
             begin: const Offset(0, -0.3),
@@ -694,10 +711,60 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
               parent: animation, curve: Curves.easeOut)),
           child: FadeTransition(
             opacity: animation,
-            child: _buildExpenseCard(_expenses[index]),
+            child: card,
           ),
         );
       },
+    );
+  }
+
+  Future<void> _deleteGroupExpense(Expense expense) async {
+    // Reconcile the AnimatedList model since Dismissible already removed the
+    // card visually; the realtime stream will re-add it if undone.
+    final index = _expenses.indexWhere((e) => e.id == expense.id);
+    if (index != -1) {
+      setState(() => _expenses.removeAt(index));
+      _listKey.currentState?.removeItem(
+        index,
+        (_, _) => const SizedBox.shrink(),
+        duration: Duration.zero,
+      );
+    }
+
+    final service = ref.read(expensesServiceProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    Map<String, dynamic>? snapshot;
+    try {
+      snapshot = await service.getExpenseSnapshot(expense.id);
+      await service.deleteExpense(expense.id);
+      ref.invalidate(groupDetailProvider(widget.groupId));
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+      return;
+    }
+    final restorable = snapshot;
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Expense deleted'),
+        backgroundColor: _red,
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Colors.white,
+          onPressed: () async {
+            try {
+              await service.restoreExpenseSnapshot(restorable);
+              ref.invalidate(groupDetailProvider(widget.groupId));
+            } catch (e) {
+              if (mounted) ErrorHandler.showError(context, e);
+            }
+          },
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
     );
   }
 

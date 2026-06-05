@@ -16,6 +16,8 @@ import '../expenses/one_time_expense_detail_screen.dart';
 import '../../services/notification_service.dart';
 import '../../widgets/skeleton_loader.dart';
 import '../../utils/responsive.dart';
+import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -33,43 +35,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return routes[_currentIndex];
   }
 
-  void _showExitDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Theme.of(ctx).cardColor,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Exit Splivy?',
-          style: TextStyle(
-              color: Theme.of(ctx).colorScheme.onSurface,
-              fontWeight: FontWeight.bold),
-        ),
-        content: const Text(
-          'Are you sure you want to exit?',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel',
-                style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () => SystemNavigator.pop(),
-            child: const Text('Exit',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
+  Future<void> _showExitDialog() async {
+    final confirmed = await showExitAppDialog(context);
+    if (confirmed == true) SystemNavigator.pop();
   }
 
   @override
@@ -319,12 +287,76 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
           physics: const NeverScrollableScrollPhysics(),
           itemCount: items.length,
           separatorBuilder: (_, _) => const SizedBox(height: 10),
-          itemBuilder: (_, i) => _RecentExpenseCard(
-            expense: items[i],
-            onTap: () => _openExpense(items[i]),
-          ),
+          itemBuilder: (_, i) {
+            final expense = items[i];
+            final card = _RecentExpenseCard(
+              expense: expense,
+              onTap: () => _openExpense(expense),
+            );
+            // Only the payer can delete their own expense via swipe.
+            if (!expense.isPayer) return card;
+            return Dismissible(
+              key: Key(expense.id),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFF6B6B),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 20),
+                child: const Icon(Icons.delete, color: Colors.white),
+              ),
+              confirmDismiss: (_) =>
+                  showDeleteDialog(context, expense.title).then((v) => v == true),
+              onDismissed: (_) => _deleteExpense(expense),
+              child: card,
+            );
+          },
         );
       },
+    );
+  }
+
+  Future<void> _deleteExpense(RecentExpense expense) async {
+    final service = ref.read(expensesServiceProvider);
+    final messenger = ScaffoldMessenger.of(context);
+    Map<String, dynamic>? snapshot;
+    try {
+      snapshot = await service.getExpenseSnapshot(expense.id);
+      await service.deleteExpense(expense.id);
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(userBalanceProvider);
+      ref.invalidate(customExpensesProvider);
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+      return;
+    }
+    final restorable = snapshot;
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Expense deleted'),
+        backgroundColor: const Color(0xFFFF6B6B),
+        action: SnackBarAction(
+          label: 'Undo',
+          textColor: Colors.white,
+          onPressed: () async {
+            try {
+              await service.restoreExpenseSnapshot(restorable);
+              ref.invalidate(recentExpensesProvider);
+              ref.invalidate(userBalanceProvider);
+              ref.invalidate(customExpensesProvider);
+            } catch (e) {
+              if (mounted) ErrorHandler.showError(context, e);
+            }
+          },
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
     );
   }
 

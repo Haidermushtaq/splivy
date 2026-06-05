@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../models/group_model.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/groups_service.dart';
 import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../../widgets/lottie_widget.dart';
 import '../../widgets/skeleton_loader.dart';
 
@@ -185,17 +187,35 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       itemCount: groups.length,
-      itemBuilder: (context, index) => _GroupCard(
-        group: groups[index],
-        onTap: () => Navigator.of(context).pushNamed(
-          '/group-detail',
-          arguments: {
-            'groupName': groups[index].name,
-            'groupId': groups[index].id,
-          },
-        ),
-      ),
+      itemBuilder: (context, index) {
+        final group = groups[index];
+        final isCreator = group.createdBy ==
+            Supabase.instance.client.auth.currentUser?.id;
+        return _GroupCard(
+          group: group,
+          onTap: () => Navigator.of(context).pushNamed(
+            '/group-detail',
+            arguments: {
+              'groupName': group.name,
+              'groupId': group.id,
+            },
+          ),
+          onLongPress: isCreator ? () => _confirmDeleteGroup(group) : null,
+        );
+      },
     );
+  }
+
+  Future<void> _confirmDeleteGroup(Group group) async {
+    final confirmed = await showDeleteGroupDialog(context, group.name);
+    if (confirmed != true) return;
+    try {
+      await GroupsService().deleteGroup(group.id);
+      ref.invalidate(userGroupsStreamProvider);
+      if (mounted) ErrorHandler.showSuccess(context, '${group.name} deleted');
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+    }
   }
 
   Widget _buildEmptyState(Color onSurface) {
@@ -249,11 +269,16 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
 class _GroupCard extends StatelessWidget {
   final Group group;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
-  const _GroupCard({required this.group, required this.onTap});
+  const _GroupCard({
+    required this.group,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -273,6 +298,7 @@ class _GroupCard extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding:

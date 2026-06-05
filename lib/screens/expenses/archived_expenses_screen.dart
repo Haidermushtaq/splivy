@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/expenses_provider.dart';
 import '../../services/expenses_service.dart';
+import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../../widgets/lottie_widget.dart';
 
 class ArchivedExpensesScreen extends ConsumerWidget {
@@ -42,29 +44,12 @@ class ArchivedExpensesScreen extends ConsumerWidget {
 
   Future<void> _confirmUnarchive(
       BuildContext context, WidgetRef ref, RecentExpense expense) async {
-    final cardColor = Theme.of(context).cardColor;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Unarchive Expense',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text(
-          'Restore "${expense.title}" to your active expenses?',
-          style: const TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Unarchive', style: TextStyle(color: _accent)),
-          ),
-        ],
-      ),
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Unarchive Expense',
+      message: 'Move this expense back to active?',
+      confirmText: 'Unarchive',
+      icon: const Icon(Icons.unarchive_outlined, color: _accent),
     );
 
     if (ok != true) return;
@@ -73,14 +58,10 @@ class ArchivedExpensesScreen extends ConsumerWidget {
       ref.invalidate(archivedExpensesProvider);
       ref.invalidate(recentExpensesProvider);
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Expense unarchived! ✅')),
-      );
-    } catch (_) {
+      ErrorHandler.showSuccess(context, 'Expense unarchived');
+    } catch (e) {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to unarchive. Try again.')),
-      );
+      ErrorHandler.showError(context, e);
     }
   }
 

@@ -6,6 +6,7 @@ import '../../providers/friends_provider.dart';
 import '../../providers/realtime_provider.dart';
 import '../../services/friends_service.dart';
 import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 import '../../widgets/lottie_widget.dart';
 import '../../widgets/skeleton_loader.dart';
 import 'friend_detail_screen.dart';
@@ -56,6 +57,20 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _confirmRemoveFriend(Friend friend) async {
+    final confirmed = await showRemoveFriendDialog(context, friend.fullName);
+    if (confirmed != true) return;
+    try {
+      await FriendsService().removeFriend(friend.id);
+      ref.invalidate(friendsListProvider);
+      if (mounted) {
+        ErrorHandler.showSuccess(context, '${friend.fullName} removed');
+      }
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+    }
   }
 
   Future<void> _acceptRequest(String requestId) async {
@@ -178,6 +193,7 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
                           ).then((_) {
                             ref.invalidate(friendsListProvider);
                           }),
+                          onLongPress: () => _confirmRemoveFriend(friend),
                         );
                       },
                       childCount: filtered.length,
@@ -389,11 +405,16 @@ class _FriendsScreenState extends ConsumerState<FriendsScreen> {
 class _FriendCard extends StatelessWidget {
   final Friend friend;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
 
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
-  const _FriendCard({required this.friend, required this.onTap});
+  const _FriendCard({
+    required this.friend,
+    required this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -414,6 +435,7 @@ class _FriendCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(14)),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.symmetric(

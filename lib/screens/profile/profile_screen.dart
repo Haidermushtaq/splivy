@@ -13,6 +13,8 @@ import '../../providers/theme_provider.dart';
 import '../../services/auth_service.dart';
 import '../../services/preferences_service.dart';
 import '../../services/reminder_service.dart';
+import '../../services/notification_service.dart';
+import '../../widgets/confirm_dialog.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -865,61 +867,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  void _confirmLogout() {
-    final cardColor = Theme.of(context).cardColor;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Logout',
-          style: TextStyle(
-              color: Theme.of(ctx).colorScheme.onSurface,
-              fontWeight: FontWeight.bold),
+  Future<void> _confirmLogout() async {
+    final confirmed = await showLogoutDialog(context);
+    if (confirmed != true || !mounted) return;
+    // Capture before the next await: signing out tears down this screen, so
+    // resolving these from context afterwards throws "deactivated widget's
+    // ancestor".
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await AuthService().signOut();
+      await PreferencesService().clearAll();
+      await NotificationService().cancelAllNotifications();
+      rootNavigator.pushNamedAndRemoveUntil('/login', (route) => false);
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Logout failed. Please try again.'),
+          backgroundColor: Colors.redAccent,
         ),
-        content: const Text(
-          'Are you sure you want to logout?',
-          style: TextStyle(color: Colors.grey),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8)),
-            ),
-            onPressed: () async {
-              // Capture before the await: signing out tears down this screen,
-              // so resolving these from context afterwards throws
-              // "deactivated widget's ancestor".
-              final rootNavigator = Navigator.of(context, rootNavigator: true);
-              final messenger = ScaffoldMessenger.of(context);
-              Navigator.of(ctx).pop();
-              try {
-                await AuthService().signOut();
-                rootNavigator.pushNamedAndRemoveUntil(
-                    '/login', (route) => false);
-              } catch (_) {
-                messenger.showSnackBar(
-                  const SnackBar(
-                    content: Text('Logout failed. Please try again.'),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-              }
-            },
-            child: const Text('Logout',
-                style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
+      );
+    }
   }
 }
 
