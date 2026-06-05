@@ -1,16 +1,39 @@
-# fairshare
+# Splivy 💰
 
-A new Flutter project.
+### Split smart. Settle easy. 🇵🇰
+
+A Flutter expense splitting app built for Pakistani users. Split bills with friends, track balances, and settle via JazzCash or Easypaisa.
+
+## Tech Stack
+
+- **Flutter** — cross-platform UI
+- **Supabase** — auth, Postgres database, realtime, and storage
+- **Riverpod** — state management
+
+## Team
+
+Haider Mushtaq • Mohsin Ashraf • Shumail Khan • Haider Zahoor
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+1. Clone the repo:
+   ```
+   git clone https://github.com/Haidermushtaq/splivy
+   ```
+2. Install dependencies:
+   ```
+   flutter pub get
+   ```
+3. Add a `.env` file with your Supabase credentials:
+   ```
+   SUPABASE_URL=your-project-url
+   SUPABASE_ANON_KEY=your-anon-key
+   ```
+4. Run the app:
+   ```
+   flutter run
+   ```
 
-A few resources to get you started if this is your first Flutter project:
+## Links
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
-
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+- Repository: [github.com/Haidermushtaq/splivy](https://github.com/Haidermushtaq/splivy)

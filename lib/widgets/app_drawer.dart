@@ -49,7 +49,7 @@ class _AppDrawerState extends State<AppDrawer> {
           _actionTile(
             context,
             icon: Icons.info_outline,
-            label: 'About FairShare',
+            label: 'About Splivy',
             onTap: _showAboutDialog,
           ),
           Divider(color: dividerColor, indent: 16, endIndent: 16, height: 24),
@@ -293,7 +293,7 @@ class _AppDrawerState extends State<AppDrawer> {
             const Icon(Icons.account_balance_wallet_rounded, color: _accent, size: 24),
             const SizedBox(width: 10),
             Text(
-              'FairShare',
+              'Splivy',
               style: TextStyle(color: onSurface, fontWeight: FontWeight.bold),
             ),
           ],

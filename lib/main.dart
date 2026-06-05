@@ -100,13 +100,13 @@ void main() async {
       overrides: [
         preferencesServiceProvider.overrideWithValue(prefsService),
       ],
-      child: const FairShareApp(),
+      child: const SplivyApp(),
     ),
   );
 }
 
-class FairShareApp extends ConsumerWidget {
-  const FairShareApp({super.key});
+class SplivyApp extends ConsumerWidget {
+  const SplivyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -135,7 +135,7 @@ class FairShareApp extends ConsumerWidget {
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      title: 'FairShare',
+      title: 'Splivy',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,

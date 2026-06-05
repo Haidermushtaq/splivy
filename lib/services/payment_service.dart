@@ -60,7 +60,7 @@ class PaymentService {
         urlBuilder: () {
           final phone = '92${receiverPhone.substring(1)}';
           final msg = 'Hi $receiverName, sending PKR ${amount.toStringAsFixed(0)} '
-              'for "$expenseTitle" via FairShare app. '
+              'for "$expenseTitle" via Splivy app. '
               'Please confirm once received.';
           return 'https://wa.me/$phone?text=${Uri.encodeComponent(msg)}';
         },
@@ -102,7 +102,7 @@ class PaymentService {
     await _client.from(table).update({
       'amount_paid': amountPaid,
       'payment_method': paymentMethod,
-      if (proofUrl != null) 'payment_proof_url': proofUrl,
+      'payment_proof_url': ?proofUrl,
       'payment_status': PaymentStatus.payerMarked,
       if (!isGuest) 'paid_by_user': _userId,
       'is_settled': false,

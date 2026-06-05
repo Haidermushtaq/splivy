@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fairshare/services/expenses_service.dart';
+import 'package:splivy/services/expenses_service.dart';
 
 // Verifies the net-settlement edge algorithm that underpins both single- and
 // multi-payer expenses. Each edge is a debtor -> creditor transfer.

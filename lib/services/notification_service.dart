@@ -37,18 +37,18 @@ class NotificationService {
     // Create both channels up front so they exist before any notification fires.
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
-        'fairshare_channel',
-        'FairShare',
-        description: 'FairShare real-time expense notifications',
+        'splivy_channel',
+        'Splivy',
+        description: 'Splivy real-time expense notifications',
         importance: Importance.high,
       ),
     );
 
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
-        'fairshare_reminders',
-        'Payment Reminders',
-        description: 'Reminders for pending payments',
+        'splivy_reminders',
+        'Splivy Reminders',
+        description: 'Reminders from Splivy app',
         importance: Importance.high,
         playSound: true,
         enableVibration: true,
@@ -77,7 +77,7 @@ class NotificationService {
     await _plugin.show(
       DateTime.now().millisecondsSinceEpoch % 10000,
       'New Friend Request',
-      '@$username wants to connect with you on FairShare',
+      '@$username wants to connect with you on Splivy',
       _immediateDetails(),
       payload: 'friends',
     );
@@ -236,9 +236,9 @@ class NotificationService {
   NotificationDetails _immediateDetails() {
     return const NotificationDetails(
       android: AndroidNotificationDetails(
-        'fairshare_channel',
-        'FairShare',
-        channelDescription: 'FairShare real-time expense notifications',
+        'splivy_channel',
+        'Splivy',
+        channelDescription: 'Splivy real-time expense notifications',
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',
@@ -250,9 +250,9 @@ class NotificationService {
   NotificationDetails _reminderDetails(String body) {
     return NotificationDetails(
       android: AndroidNotificationDetails(
-        'fairshare_reminders',
-        'Payment Reminders',
-        channelDescription: 'Reminders for pending payments',
+        'splivy_reminders',
+        'Splivy Reminders',
+        channelDescription: 'Reminders from Splivy app',
         importance: Importance.high,
         priority: Priority.high,
         icon: '@mipmap/ic_launcher',

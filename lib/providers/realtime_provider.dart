@@ -69,7 +69,7 @@ final groupMembersStreamProvider =
 /// Background listener that fires a local notification when a NEW friend
 /// request arrives while the app is open.
 ///
-/// Keep alive at the app level (watched in FairShareApp.build) so it stays
+/// Keep alive at the app level (watched in SplivyApp.build) so it stays
 /// active regardless of which screen is visible.
 /// Does NOT emit a value — side-effect only.
 final friendRequestNotificationProvider = Provider.autoDispose((ref) {
