@@ -595,48 +595,91 @@ class ExpensesService {
   /// breakdown, and every debtor -> creditor settlement edge (settled and
   /// unsettled alike, so the in-expense offsetting history is visible).
   Future<GroupExpenseDetail> getGroupExpenseDetail(String expenseId) async {
-    final e =
-        await _client.from('expenses').select().eq('id', expenseId).single();
+    // Phase 1: everything keyed only by the expense id, fetched concurrently.
+    final phase1 = await Future.wait<dynamic>([
+      _client.from('expenses').select().eq('id', expenseId).single(),
+      _client
+          .from('expense_splits')
+          .select(
+              'id, user_id, owed_to, amount, amount_paid, is_settled, payment_status')
+          .eq('expense_id', expenseId),
+      _client
+          .from('expense_payers')
+          .select('user_id, amount_paid')
+          .eq('expense_id', expenseId),
+    ]);
+    final e = phase1[0] as Map<String, dynamic>;
+    final splitRows = phase1[1] as List;
+    final payerRows = phase1[2] as List;
+
     final isMultiPayer = e['is_multi_payer'] as bool? ?? false;
     final paidById = e['paid_by'] as String?;
     final groupId = e['group_id'] as String?;
 
-    String groupName = groupId == null ? 'One-time' : 'Group';
-    if (groupId != null) {
-      final g = await _client
-          .from('groups')
-          .select('name')
-          .eq('id', groupId)
-          .maybeSingle();
-      groupName = g?['name'] as String? ?? 'Group';
-    }
-
-    final paidByName =
-        await _resolvePaidByName(expenseId, isMultiPayer, paidById);
-
-    final splitRows = await _client
-        .from('expense_splits')
-        .select(
-            'id, user_id, owed_to, amount, amount_paid, is_settled, payment_status')
-        .eq('expense_id', expenseId);
-
+    // Collect every user id we need a display name for, resolved in one query.
     final ids = <String>{};
-    for (final s in splitRows as List) {
+    for (final s in splitRows) {
       ids.add(s['user_id'] as String);
       ids.add(s['owed_to'] as String);
     }
+    for (final p in payerRows) {
+      ids.add(p['user_id'] as String);
+    }
+    if (paidById != null) ids.add(paidById);
+
+    // Phase 2: profiles, group name, and (multi-payer) guest payers, concurrently.
+    final phase2 = await Future.wait<dynamic>([
+      ids.isEmpty
+          ? Future.value(const <dynamic>[])
+          : _client
+              .from('profiles')
+              .select('id, full_name')
+              .inFilter('id', ids.toList()),
+      groupId == null
+          ? Future.value(null)
+          : _client.from('groups').select('name').eq('id', groupId).maybeSingle(),
+      isMultiPayer
+          ? _client
+              .from('guest_splits')
+              .select('guest_name, amount_paid')
+              .eq('expense_id', expenseId)
+              .gt('amount_paid', 0)
+          : Future.value(const <dynamic>[]),
+    ]);
+    final profs = phase2[0] as List;
+    final groupRow = phase2[1] as Map<String, dynamic>?;
+    final guestPayers = phase2[2] as List;
+
+    final groupName = groupId == null
+        ? 'One-time'
+        : (groupRow?['name'] as String? ?? 'Group');
+
     final nameMap = <String, String>{};
-    if (ids.isNotEmpty) {
-      final profs = await _client
-          .from('profiles')
-          .select('id, full_name')
-          .inFilter('id', ids.toList());
-      for (final p in profs as List) {
-        nameMap[p['id'] as String] = p['full_name'] as String? ?? 'Unknown';
-      }
+    for (final p in profs) {
+      nameMap[p['id'] as String] = p['full_name'] as String? ?? 'Unknown';
     }
 
     String nameOf(String id) => id == _userId ? 'You' : (nameMap[id] ?? 'Unknown');
+
+    // Paid-by label, computed from rows already fetched above (no extra round trips).
+    final String paidByName;
+    if (isMultiPayer) {
+      final payerCount = payerRows.length + guestPayers.length;
+      if (payerCount == 0) {
+        paidByName = 'Unknown';
+      } else if (payerCount == 1) {
+        paidByName = payerRows.length == 1
+            ? nameOf(payerRows[0]['user_id'] as String)
+            : (guestPayers[0]['guest_name'] as String? ?? 'Unknown');
+      } else if (payerRows.any((p) => p['user_id'] == _userId)) {
+        paidByName =
+            'You + ${payerCount - 1} ${payerCount == 2 ? 'other' : 'others'}';
+      } else {
+        paidByName = '$payerCount people';
+      }
+    } else {
+      paidByName = paidById == null ? 'Unknown' : nameOf(paidById);
+    }
 
     final edges = splitRows.map((s) {
       final debtorId = s['user_id'] as String;
@@ -656,17 +699,12 @@ class ExpensesService {
 
     final payers = <PayerContribution>[];
     if (isMultiPayer) {
-      final payerRows = await _client
-          .from('expense_payers')
-          .select('user_id, amount_paid')
-          .eq('expense_id', expenseId);
-      for (final p in payerRows as List) {
+      for (final p in payerRows) {
         final uid = p['user_id'] as String;
-        final isYou = uid == _userId;
         payers.add(PayerContribution(
           name: nameOf(uid),
           amount: (p['amount_paid'] as num).toDouble(),
-          isYou: isYou,
+          isYou: uid == _userId,
         ));
       }
     } else {
