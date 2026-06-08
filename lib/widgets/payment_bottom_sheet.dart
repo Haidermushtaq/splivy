@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/payment_model.dart';
@@ -71,6 +72,7 @@ class _PaymentBottomSheetState extends State<_PaymentBottomSheet> {
 
   final _paymentService = PaymentService();
   final _imagePicker = ImagePicker();
+  static const _appLauncher = MethodChannel('splivy/app_launcher');
 
   PaymentMethod? _selectedMethod;
   File? _proofImage;
@@ -99,25 +101,43 @@ class _PaymentBottomSheetState extends State<_PaymentBottomSheet> {
     // foreground; the user then enters the recipient and amount manually.
     final pkg = _selectedMethod!.androidPackage;
     if (!kIsWeb && Platform.isAndroid && pkg != null) {
-      // canResolveActivity() is unreliable across OEM launchers, so just try to
-      // launch and fall back to the website only if the app isn't installed.
+      // Use the platform's getLaunchIntentForPackage (via MainActivity) to open
+      // the app the same way the home screen does. A raw MAIN/LAUNCHER intent
+      // fails for apps whose launcher entry is an activity-alias, leaking to the
+      // website fallback and a confusing "open with" browser chooser.
       try {
-        final intent = AndroidIntent(
-          action: 'android.intent.action.MAIN',
-          package: pkg,
-          category: 'android.intent.category.LAUNCHER',
+        final opened = await _appLauncher.invokeMethod<bool>(
+          'launchApp',
+          {'package': pkg},
+        );
+        if (opened == true) {
+          setState(() => _hasOpenedPaymentApp = true);
+          return;
+        }
+      } catch (_) {
+        // Channel error; fall through to the Play Store / website.
+      }
+
+      // App not installed: open its Play Store page directly (no chooser).
+      try {
+        final store = AndroidIntent(
+          action: 'android.intent.action.VIEW',
+          data: 'market://details?id=$pkg',
           flags: const [268435456], // FLAG_ACTIVITY_NEW_TASK
         );
-        await intent.launch();
+        await store.launch();
         setState(() => _hasOpenedPaymentApp = true);
         return;
       } catch (_) {
-        // App not installed or couldn't launch; fall through to the website.
+        // Play Store app missing; fall through to the website.
       }
     }
 
-    // App not installed (or non-Android): fall back to the website.
-    final url = Uri.parse(_selectedMethod!.urlBuilder!());
+    // Non-Android, no package, or Play Store unavailable: fall back to the web.
+    final fallback = !kIsWeb && Platform.isAndroid && pkg != null
+        ? 'https://play.google.com/store/apps/details?id=$pkg'
+        : _selectedMethod!.urlBuilder!();
+    final url = Uri.parse(fallback);
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
       setState(() => _hasOpenedPaymentApp = true);
