@@ -46,3 +46,11 @@ final customExpensesProvider =
     FutureProvider.autoDispose<List<CustomExpenseDetail>>((ref) {
   return ref.read(expensesServiceProvider).getCustomExpenses();
 });
+
+/// Every settled debt the user is part of, newest first, for the Settlement
+/// History screen. autoDispose: refetches each time the screen opens so newly
+/// settled or offset debts appear without a manual refresh.
+final settlementHistoryProvider =
+    FutureProvider.autoDispose<List<SettlementRecord>>((ref) {
+  return ref.read(expensesServiceProvider).getSettlementHistory();
+});

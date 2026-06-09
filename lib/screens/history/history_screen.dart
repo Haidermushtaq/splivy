@@ -35,6 +35,14 @@ class HistoryScreen extends StatelessWidget {
               builder: (_) => const _GroupsHistoryScreen(),
             )),
           ),
+          const SizedBox(height: 12),
+          _HubTile(
+            icon: Icons.handshake_outlined,
+            title: 'Settlement History',
+            subtitle: 'Who paid whom, methods, proof, and offsets',
+            onTap: () =>
+                Navigator.of(context).pushNamed('/settlement-history'),
+          ),
         ],
       ),
     );

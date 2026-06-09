@@ -293,12 +293,22 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
               expense: expense,
               onTap: () => _openExpense(expense),
             );
-            // Only the payer can delete their own expense via swipe.
+            // Only the payer can manage their own expense via swipe: swipe
+            // right to archive (if fully settled), swipe left to delete.
             if (!expense.isPayer) return card;
             return Dismissible(
               key: Key(expense.id),
-              direction: DismissDirection.endToStart,
+              direction: DismissDirection.horizontal,
               background: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00D4AA),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.only(left: 20),
+                child: const Icon(Icons.archive_outlined, color: Colors.white),
+              ),
+              secondaryBackground: Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFFFF6B6B),
                   borderRadius: BorderRadius.circular(14),
@@ -307,14 +317,58 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
                 padding: const EdgeInsets.only(right: 20),
                 child: const Icon(Icons.delete, color: Colors.white),
               ),
-              confirmDismiss: (_) =>
-                  showDeleteDialog(context, expense.title).then((v) => v == true),
-              onDismissed: (_) => _deleteExpense(expense),
+              confirmDismiss: (direction) {
+                if (direction == DismissDirection.startToEnd) {
+                  return _confirmArchive(expense);
+                }
+                return showDeleteDialog(context, expense.title)
+                    .then((v) => v == true);
+              },
+              onDismissed: (direction) {
+                if (direction == DismissDirection.startToEnd) {
+                  _afterArchive();
+                } else {
+                  _deleteExpense(expense);
+                }
+              },
               child: card,
             );
           },
         );
       },
+    );
+  }
+
+  /// Confirms then archives an expense. Returns true only when the archive
+  /// actually succeeds, so the row is dismissed; on cancel or failure (e.g. not
+  /// everyone has settled) the row stays put and the error is surfaced.
+  Future<bool> _confirmArchive(RecentExpense expense) async {
+    final confirmed = await showArchiveDialog(context);
+    if (confirmed != true) return false;
+    try {
+      await ref.read(expensesServiceProvider).archiveExpense(expense.id);
+      return true;
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+      return false;
+    }
+  }
+
+  void _afterArchive() {
+    ref.invalidate(recentExpensesProvider);
+    ref.invalidate(archivedExpensesProvider);
+    ref.invalidate(customExpensesProvider);
+    ref.invalidate(userBalanceProvider);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Expense archived'),
+        backgroundColor: const Color(0xFF00D4AA),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
     );
   }
 

@@ -32,6 +32,7 @@ import 'screens/expenses/custom_expenses_screen.dart';
 import 'screens/expenses/one_time_expense_screen.dart';
 import 'screens/expenses/archived_expenses_screen.dart';
 import 'screens/history/history_screen.dart';
+import 'screens/history/settlement_history_screen.dart';
 import 'screens/settle/settle_up_screen.dart';
 import 'screens/onboarding/onboarding_screen.dart';
 
@@ -211,6 +212,8 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
       return slideRoute(const ArchivedExpensesScreen(), settings);
     case '/history':
       return slideRoute(const HistoryScreen(), settings);
+    case '/settlement-history':
+      return slideRoute(const SettlementHistoryScreen(), settings);
     default:
       return slideRoute(const SplashScreen(), settings);
   }

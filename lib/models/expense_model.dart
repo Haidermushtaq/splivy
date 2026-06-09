@@ -336,6 +336,49 @@ class GroupExpenseDetail {
   });
 }
 
+/// A single settled debt between the current user and one counterpart, used by
+/// the Settlement History screen. Covers registered-user splits (either
+/// direction) and guest splits, and both ordinary payments and auto-net
+/// offsets ([isOffset] true when the debt was cancelled rather than paid).
+class SettlementRecord {
+  final String id;
+  final String expenseId;
+  final String expenseTitle;
+  final String groupName;
+  final String counterpartName;
+
+  /// True when the current user was the debtor (you paid the counterpart).
+  final bool youPaid;
+  final double amount;
+  final String? paymentMethod;
+  final String? paymentProofUrl;
+  final String paymentStatus;
+
+  /// True when this debt was cancelled by auto-netting rather than a payment.
+  final bool isOffset;
+  final bool isGuest;
+  final DateTime settledAt;
+
+  const SettlementRecord({
+    required this.id,
+    required this.expenseId,
+    required this.expenseTitle,
+    required this.groupName,
+    required this.counterpartName,
+    required this.youPaid,
+    required this.amount,
+    this.paymentMethod,
+    this.paymentProofUrl,
+    this.paymentStatus = 'confirmed',
+    this.isOffset = false,
+    this.isGuest = false,
+    required this.settledAt,
+  });
+
+  bool get isCash =>
+      paymentStatus == 'cash_settled' || paymentMethod == 'cash';
+}
+
 class CustomExpenseDetail {
   final Expense expense;
   final List<GuestSplit> guests;
