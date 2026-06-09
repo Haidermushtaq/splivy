@@ -781,43 +781,134 @@ class ExpensesService {
     return 'Unknown';
   }
 
-  Future<UserBalance> getUserTotalBalance() async {
-    final owedRows = await _client
-        .from('expense_splits')
-        .select('amount, expenses!inner(is_archived)')
-        .eq('owed_to', _userId)
-        .eq('is_settled', false)
-        .eq('expenses.is_archived', false);
+  /// Resolves the "paid by" label for many expenses in one shot, batching the
+  /// payer and profile lookups instead of running [_resolvePaidByName] per row.
+  /// Returns a map of expense id -> display label.
+  Future<Map<String, String>> _resolvePaidByNames(
+    List<Map<String, dynamic>> expenses,
+  ) async {
+    if (expenses.isEmpty) return {};
 
-    final owingRows = await _client
-        .from('expense_splits')
-        .select('amount, expenses!inner(is_archived)')
-        .eq('user_id', _userId)
-        .eq('is_settled', false)
-        .eq('expenses.is_archived', false);
+    final multiIds = <String>[];
+    final singlePaidBy = <String, String?>{};
+    for (final e in expenses) {
+      final id = e['id'] as String;
+      if (e['is_multi_payer'] as bool? ?? false) {
+        multiIds.add(id);
+      } else {
+        singlePaidBy[id] = e['paid_by'] as String?;
+      }
+    }
+
+    final payersByExpense = <String, List<String>>{};
+    final guestPayersByExpense = <String, List<String>>{};
+    if (multiIds.isNotEmpty) {
+      final results = await Future.wait<dynamic>([
+        _client
+            .from('expense_payers')
+            .select('expense_id, user_id')
+            .inFilter('expense_id', multiIds),
+        _client
+            .from('guest_splits')
+            .select('expense_id, guest_name, amount_paid')
+            .inFilter('expense_id', multiIds)
+            .gt('amount_paid', 0),
+      ]);
+      for (final p in results[0] as List) {
+        (payersByExpense[p['expense_id'] as String] ??= [])
+            .add(p['user_id'] as String);
+      }
+      for (final g in results[1] as List) {
+        (guestPayersByExpense[g['expense_id'] as String] ??= [])
+            .add(g['guest_name'] as String? ?? 'Unknown');
+      }
+    }
+
+    final ids = <String>{};
+    for (final v in payersByExpense.values) {
+      ids.addAll(v);
+    }
+    for (final v in singlePaidBy.values) {
+      if (v != null) ids.add(v);
+    }
+    final nameMap = <String, String>{};
+    if (ids.isNotEmpty) {
+      final profs = await _client
+          .from('profiles')
+          .select('id, full_name')
+          .inFilter('id', ids.toList());
+      for (final p in profs as List) {
+        nameMap[p['id'] as String] = p['full_name'] as String? ?? 'Unknown';
+      }
+    }
+    String nameOf(String id) =>
+        id == _userId ? 'You' : (nameMap[id] ?? 'Unknown');
+
+    final result = <String, String>{};
+    for (final e in expenses) {
+      final id = e['id'] as String;
+      if (e['is_multi_payer'] as bool? ?? false) {
+        final users = payersByExpense[id] ?? const [];
+        final guests = guestPayersByExpense[id] ?? const [];
+        final count = users.length + guests.length;
+        if (count == 0) {
+          result[id] = 'Unknown';
+        } else if (count == 1) {
+          result[id] = users.length == 1 ? nameOf(users.first) : guests.first;
+        } else if (users.contains(_userId)) {
+          result[id] =
+              'You + ${count - 1} ${count == 2 ? 'other' : 'others'}';
+        } else {
+          result[id] = '$count people';
+        }
+      } else {
+        final paidBy = singlePaidBy[id];
+        result[id] = paidBy == null ? 'Unknown' : nameOf(paidBy);
+      }
+    }
+    return result;
+  }
+
+  Future<UserBalance> getUserTotalBalance() async {
+    // Guest debts live only on guest_splits (no expense_splits row). The user
+    // is always the creditor on their own expenses. A positive guest amount
+    // means the guest owes the user; a negative amount means the user owes the
+    // guest (guest overpaid). Fetch all three sets concurrently.
+    final results = await Future.wait<dynamic>([
+      _client
+          .from('expense_splits')
+          .select('amount, expenses!inner(is_archived)')
+          .eq('owed_to', _userId)
+          .eq('is_settled', false)
+          .eq('expenses.is_archived', false),
+      _client
+          .from('expense_splits')
+          .select('amount, expenses!inner(is_archived)')
+          .eq('user_id', _userId)
+          .eq('is_settled', false)
+          .eq('expenses.is_archived', false),
+      _client
+          .from('guest_splits')
+          .select('amount, expenses!inner(paid_by, is_archived)')
+          .eq('is_settled', false)
+          .eq('expenses.paid_by', _userId)
+          .eq('expenses.is_archived', false),
+    ]);
+    final owedRows = results[0] as List;
+    final owingRows = results[1] as List;
+    final guestRows = results[2] as List;
 
     double totalOwed = 0;
-    for (final s in owedRows as List) {
+    for (final s in owedRows) {
       totalOwed += (s['amount'] as num).toDouble();
     }
 
     double totalOwing = 0;
-    for (final s in owingRows as List) {
+    for (final s in owingRows) {
       totalOwing += (s['amount'] as num).toDouble();
     }
 
-    // Guest debts live only on guest_splits (no expense_splits row). The user
-    // is always the creditor on their own expenses. A positive guest amount
-    // means the guest owes the user; a negative amount means the user owes the
-    // guest (guest overpaid).
-    final guestRows = await _client
-        .from('guest_splits')
-        .select('amount, expenses!inner(paid_by, is_archived)')
-        .eq('is_settled', false)
-        .eq('expenses.paid_by', _userId)
-        .eq('expenses.is_archived', false);
-
-    for (final g in guestRows as List) {
+    for (final g in guestRows) {
       final amount = (g['amount'] as num).toDouble();
       if (amount >= 0) {
         totalOwed += amount;
@@ -833,25 +924,28 @@ class ExpensesService {
     const expenseEmbed =
         'expenses!inner(title, group_id, created_at, is_archived)';
 
-    final iOwe = await _client
-        .from('expense_splits')
-        .select(
-            'id, expense_id, amount, payment_status, payment_proof_url, payment_method, owed_to, $expenseEmbed')
-        .eq('user_id', _userId)
-        .eq('is_settled', false)
-        .eq('expenses.is_archived', false);
-
-    final owedToMe = await _client
-        .from('expense_splits')
-        .select(
-            'id, expense_id, amount, payment_status, payment_proof_url, payment_method, user_id, $expenseEmbed')
-        .eq('owed_to', _userId)
-        .eq('is_settled', false)
-        .eq('expenses.is_archived', false);
+    final bothDirections = await Future.wait<dynamic>([
+      _client
+          .from('expense_splits')
+          .select(
+              'id, expense_id, amount, payment_status, payment_proof_url, payment_method, owed_to, $expenseEmbed')
+          .eq('user_id', _userId)
+          .eq('is_settled', false)
+          .eq('expenses.is_archived', false),
+      _client
+          .from('expense_splits')
+          .select(
+              'id, expense_id, amount, payment_status, payment_proof_url, payment_method, user_id, $expenseEmbed')
+          .eq('owed_to', _userId)
+          .eq('is_settled', false)
+          .eq('expenses.is_archived', false),
+    ]);
+    final iOwe = bothDirections[0] as List;
+    final owedToMe = bothDirections[1] as List;
 
     final counterpartIds = <String>{
-      ...(iOwe as List).map((r) => r['owed_to']).whereType<String>(),
-      ...(owedToMe as List).map((r) => r['user_id']).whereType<String>(),
+      ...iOwe.map((r) => r['owed_to']).whereType<String>(),
+      ...owedToMe.map((r) => r['user_id']).whereType<String>(),
     }.toList();
 
     final groupIds = <String>{
@@ -861,24 +955,26 @@ class ExpensesService {
           .whereType<String>(),
     }.toList();
 
+    final lookups = await Future.wait<dynamic>([
+      counterpartIds.isEmpty
+          ? Future.value(const <dynamic>[])
+          : _client
+              .from('profiles')
+              .select('id, full_name, phone, avatar_url')
+              .inFilter('id', counterpartIds),
+      groupIds.isEmpty
+          ? Future.value(const <dynamic>[])
+          : _client.from('groups').select('id, name').inFilter('id', groupIds),
+    ]);
+
     final profileMap = <String, Map<String, dynamic>>{};
-    if (counterpartIds.isNotEmpty) {
-      final profiles = await _client
-          .from('profiles')
-          .select('id, full_name, phone, avatar_url')
-          .inFilter('id', counterpartIds);
-      for (final p in profiles as List) {
-        profileMap[p['id'] as String] = p as Map<String, dynamic>;
-      }
+    for (final p in lookups[0] as List) {
+      profileMap[p['id'] as String] = p as Map<String, dynamic>;
     }
 
     final groupMap = <String, String>{};
-    if (groupIds.isNotEmpty) {
-      final groups =
-          await _client.from('groups').select('id, name').inFilter('id', groupIds);
-      for (final g in groups as List) {
-        groupMap[g['id'] as String] = g['name'] as String;
-      }
+    for (final g in lookups[1] as List) {
+      groupMap[g['id'] as String] = g['name'] as String;
     }
 
     String dueSinceOf(Map exp) {
@@ -950,18 +1046,78 @@ class ExpensesService {
     if (!includeArchived) query = query.eq('is_archived', false);
     final rows = await query.order('created_at', ascending: false);
 
+    final expenses = (rows as List).cast<Map<String, dynamic>>();
+    if (expenses.isEmpty) return [];
+    final ids = expenses.map((e) => e['id'] as String).toList();
+
+    // Batch every dependent table across all expenses in parallel, then
+    // assemble each detail in memory — no per-expense round trips.
+    final batched = await Future.wait<dynamic>([
+      _client
+          .from('guest_splits')
+          .select()
+          .inFilter('expense_id', ids)
+          .order('created_at', ascending: true),
+      _client
+          .from('expense_splits')
+          .select('id, expense_id, user_id, owed_to, amount, is_settled')
+          .inFilter('expense_id', ids)
+          .or('user_id.eq.$_userId,owed_to.eq.$_userId'),
+      _client.from('guest_guest_debts').select().inFilter('expense_id', ids),
+      _client
+          .from('expense_payers')
+          .select('expense_id, user_id, amount_paid')
+          .inFilter('expense_id', ids),
+    ]);
+    final guestRows = (batched[0] as List).cast<Map<String, dynamic>>();
+    final splitRows = (batched[1] as List).cast<Map<String, dynamic>>();
+    final ggRows = (batched[2] as List).cast<Map<String, dynamic>>();
+    final payerRows = (batched[3] as List).cast<Map<String, dynamic>>();
+
+    final guestsByExpense = <String, List<Map<String, dynamic>>>{};
+    for (final g in guestRows) {
+      (guestsByExpense[g['expense_id'] as String] ??= []).add(g);
+    }
+    final splitsByExpense = <String, List<Map<String, dynamic>>>{};
+    for (final s in splitRows) {
+      (splitsByExpense[s['expense_id'] as String] ??= []).add(s);
+    }
+    final ggByExpense = <String, List<Map<String, dynamic>>>{};
+    for (final d in ggRows) {
+      (ggByExpense[d['expense_id'] as String] ??= []).add(d);
+    }
+    final payersByExpense = <String, List<Map<String, dynamic>>>{};
+    for (final p in payerRows) {
+      (payersByExpense[p['expense_id'] as String] ??= []).add(p);
+    }
+
+    // Resolve every counterpart + payer profile in one query.
+    final profileIds = <String>{};
+    for (final s in splitRows) {
+      final from = s['user_id'] as String;
+      final to = s['owed_to'] as String;
+      profileIds.add(from == _userId ? to : from);
+    }
+    for (final p in payerRows) {
+      profileIds.add(p['user_id'] as String);
+    }
+    final profileMap = <String, Map<String, dynamic>>{};
+    if (profileIds.isNotEmpty) {
+      final profiles = await _client
+          .from('profiles')
+          .select('id, full_name, phone')
+          .inFilter('id', profileIds.toList());
+      for (final p in profiles as List) {
+        profileMap[p['id'] as String] = p as Map<String, dynamic>;
+      }
+    }
+
     final List<CustomExpenseDetail> result = [];
-    for (final e in rows as List) {
+    for (final e in expenses) {
       final expenseId = e['id'] as String;
       final isMultiPayer = e['is_multi_payer'] as bool? ?? false;
 
-      final guestRows = await _client
-          .from('guest_splits')
-          .select()
-          .eq('expense_id', expenseId)
-          .order('created_at', ascending: true);
-
-      final guests = (guestRows as List)
+      final guests = (guestsByExpense[expenseId] ?? const [])
           .map((g) => GuestSplit(
                 id: g['id'] as String,
                 expenseId: g['expense_id'] as String,
@@ -975,32 +1131,8 @@ class ExpensesService {
               ))
           .toList();
 
-      // Registered friends involved in this one-time expense, either direction.
-      final splitRows = await _client
-          .from('expense_splits')
-          .select('id, user_id, owed_to, amount, is_settled')
-          .eq('expense_id', expenseId)
-          .or('user_id.eq.$_userId,owed_to.eq.$_userId');
-
-      final counterpartIds = <String>{};
-      for (final s in splitRows as List) {
-        final from = s['user_id'] as String;
-        final to = s['owed_to'] as String;
-        counterpartIds.add(from == _userId ? to : from);
-      }
-      final profileMap = <String, Map<String, dynamic>>{};
-      if (counterpartIds.isNotEmpty) {
-        final profiles = await _client
-            .from('profiles')
-            .select('id, full_name, phone')
-            .inFilter('id', counterpartIds.toList());
-        for (final p in profiles as List) {
-          profileMap[p['id'] as String] = p as Map<String, dynamic>;
-        }
-      }
-
       // Signed from my perspective: positive = friend owes me, negative = I owe.
-      final friendDebts = splitRows.map((s) {
+      final friendDebts = (splitsByExpense[expenseId] ?? const []).map((s) {
         final from = s['user_id'] as String;
         final to = s['owed_to'] as String;
         final iAmCreditor = to == _userId;
@@ -1017,42 +1149,25 @@ class ExpensesService {
         );
       }).toList();
 
-      // Informational debts between two guests on this expense.
-      final ggRows = await _client
-          .from('guest_guest_debts')
-          .select()
-          .eq('expense_id', expenseId);
-      final guestGuestDebts = (ggRows as List)
-          .map((d) => GuestGuestDebt.fromJson(d as Map<String, dynamic>))
+      final guestGuestDebts = (ggByExpense[expenseId] ?? const [])
+          .map((d) => GuestGuestDebt.fromJson(d))
           .toList();
 
-      final paidByName = await _resolvePaidByName(
-          expenseId, isMultiPayer, e['paid_by'] as String?);
-
       // Build the "who paid what" breakdown across registered users and guests.
+      // Every custom expense is created by the current user, so a single payer
+      // is always "You"; multi-payer is derived from the batched payer rows.
+      final expensePayers = payersByExpense[expenseId] ?? const [];
+      final guestPayers = guests.where((g) => g.amountPaid > 0.01).toList();
+
       final payers = <PayerContribution>[];
       if (isMultiPayer) {
-        final payerRows = await _client
-            .from('expense_payers')
-            .select('user_id, amount_paid')
-            .eq('expense_id', expenseId);
-        final payerIds =
-            (payerRows as List).map((p) => p['user_id'] as String).toList();
-        final pProfiles = <String, String>{};
-        if (payerIds.isNotEmpty) {
-          final profs = await _client
-              .from('profiles')
-              .select('id, full_name')
-              .inFilter('id', payerIds);
-          for (final p in profs as List) {
-            pProfiles[p['id'] as String] = p['full_name'] as String? ?? 'Unknown';
-          }
-        }
-        for (final p in payerRows) {
+        for (final p in expensePayers) {
           final uid = p['user_id'] as String;
           final isYou = uid == _userId;
           payers.add(PayerContribution(
-            name: isYou ? 'You' : (pProfiles[uid] ?? 'Unknown'),
+            name: isYou
+                ? 'You'
+                : (profileMap[uid]?['full_name'] as String? ?? 'Unknown'),
             amount: (p['amount_paid'] as num).toDouble(),
             isYou: isYou,
           ));
@@ -1064,10 +1179,31 @@ class ExpensesService {
           isYou: true,
         ));
       }
-      for (final g in guests) {
-        if (g.amountPaid > 0.01) {
-          payers.add(PayerContribution(name: g.guestName, amount: g.amountPaid));
+      for (final g in guestPayers) {
+        payers.add(PayerContribution(name: g.guestName, amount: g.amountPaid));
+      }
+
+      final String paidByName;
+      if (isMultiPayer) {
+        final count = expensePayers.length + guestPayers.length;
+        if (count == 0) {
+          paidByName = 'Unknown';
+        } else if (count == 1) {
+          paidByName = expensePayers.length == 1
+              ? (expensePayers.first['user_id'] == _userId
+                  ? 'You'
+                  : (profileMap[expensePayers.first['user_id']]?['full_name']
+                          as String? ??
+                      'Unknown'))
+              : guestPayers.first.guestName;
+        } else if (expensePayers.any((p) => p['user_id'] == _userId)) {
+          paidByName =
+              'You + ${count - 1} ${count == 2 ? 'other' : 'others'}';
+        } else {
+          paidByName = '$count people';
         }
+      } else {
+        paidByName = 'You';
       }
 
       result.add(CustomExpenseDetail(
@@ -1435,12 +1571,8 @@ class ExpensesService {
       payerExpenseIds.add(p['expense_id'] as String);
     }
 
-    // Resolve payer display names concurrently rather than sequentially.
-    final paidByNames = await Future.wait(limited.map((e) => _resolvePaidByName(
-          e['id'] as String,
-          e['is_multi_payer'] as bool? ?? false,
-          e['paid_by'] as String?,
-        )));
+    // Resolve every payer display name in one batched query.
+    final paidByMap = await _resolvePaidByNames(limited);
 
     final result = <RecentExpense>[];
     for (var i = 0; i < limited.length; i++) {
@@ -1458,7 +1590,7 @@ class ExpensesService {
         title: e['title'] as String? ?? 'Expense',
         amount: (e['amount'] as num?)?.toDouble() ?? 0,
         category: e['category'] as String? ?? 'Other',
-        paidByName: paidByNames[i],
+        paidByName: paidByMap[expenseId] ?? 'Unknown',
         groupId: groupId,
         groupName: groupId != null ? groupNames[groupId] : null,
         isCustom: e['is_custom'] as bool? ?? false,
