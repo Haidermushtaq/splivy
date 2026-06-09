@@ -1105,7 +1105,9 @@ class ExpensesService {
         .eq('id', debtId);
   }
 
-  Future<void> archiveCustomExpense(String expenseId) async {
+  /// Archives any expense (group or one-time) once every debt on it is settled.
+  /// Throws if any registered-user split or guest split is still outstanding.
+  Future<void> archiveExpense(String expenseId) async {
     final unsettledGuests = await _client
         .from('guest_splits')
         .select('id')
@@ -1127,6 +1129,155 @@ class ExpensesService {
         .from('expenses')
         .update({'is_archived': true})
         .eq('id', expenseId);
+  }
+
+  Future<void> archiveCustomExpense(String expenseId) =>
+      archiveExpense(expenseId);
+
+  /// Every settled debt the current user is part of, newest first: registered
+  /// -user splits in either direction plus guest splits on their own one-time
+  /// expenses. Auto-net offsets are included (`payment_status == 'netted'`),
+  /// each carrying the expense it came from, who paid whom, the method used and
+  /// any payment proof — the data behind the Settlement History screen.
+  Future<List<SettlementRecord>> getSettlementHistory() async {
+    const expenseEmbed = 'expenses!inner(title, group_id, created_at)';
+    const fields =
+        'id, expense_id, amount, payment_status, payment_method, payment_proof_url, settled_at';
+
+    final iPaid = await _client
+        .from('expense_splits')
+        .select('$fields, owed_to, $expenseEmbed')
+        .eq('user_id', _userId)
+        .eq('is_settled', true);
+
+    final paidToMe = await _client
+        .from('expense_splits')
+        .select('$fields, user_id, $expenseEmbed')
+        .eq('owed_to', _userId)
+        .eq('is_settled', true);
+
+    final guestSettled = await _client
+        .from('guest_splits')
+        .select(
+            'id, expense_id, guest_name, amount, payment_status, payment_method, payment_proof_url, settled_at, expenses!inner(title, group_id, created_at, paid_by)')
+        .eq('is_settled', true)
+        .eq('expenses.paid_by', _userId);
+
+    final counterpartIds = <String>{
+      ...(iPaid as List).map((r) => r['owed_to']).whereType<String>(),
+      ...(paidToMe as List).map((r) => r['user_id']).whereType<String>(),
+    }.toList();
+
+    final groupIds = <String>{
+      ...iPaid.map((r) => (r['expenses'] as Map)['group_id']).whereType<String>(),
+      ...paidToMe
+          .map((r) => (r['expenses'] as Map)['group_id'])
+          .whereType<String>(),
+      ...(guestSettled as List)
+          .map((r) => (r['expenses'] as Map)['group_id'])
+          .whereType<String>(),
+    }.toList();
+
+    final nameMap = <String, String>{};
+    if (counterpartIds.isNotEmpty) {
+      final profiles = await _client
+          .from('profiles')
+          .select('id, full_name')
+          .inFilter('id', counterpartIds);
+      for (final p in profiles as List) {
+        nameMap[p['id'] as String] = p['full_name'] as String? ?? 'Unknown';
+      }
+    }
+
+    final groupMap = <String, String>{};
+    if (groupIds.isNotEmpty) {
+      final groups = await _client
+          .from('groups')
+          .select('id, name')
+          .inFilter('id', groupIds);
+      for (final g in groups as List) {
+        groupMap[g['id'] as String] = g['name'] as String? ?? 'Group';
+      }
+    }
+
+    String groupNameOf(Map exp) {
+      final gid = exp['group_id'] as String?;
+      return gid == null ? 'One-time' : (groupMap[gid] ?? 'Group');
+    }
+
+    DateTime settledOf(Map row) {
+      final s = row['settled_at'] as String?;
+      final c = (row['expenses'] as Map)['created_at'] as String?;
+      return DateTime.parse(
+          s ?? c ?? DateTime.now().toIso8601String());
+    }
+
+    final records = <SettlementRecord>[];
+
+    for (final s in iPaid) {
+      final exp = s['expenses'] as Map;
+      final status = s['payment_status'] as String? ?? 'confirmed';
+      records.add(SettlementRecord(
+        id: s['id'] as String,
+        expenseId: s['expense_id'] as String,
+        expenseTitle: exp['title'] as String? ?? 'Expense',
+        groupName: groupNameOf(exp),
+        counterpartName: nameMap[s['owed_to']] ?? 'Unknown',
+        youPaid: true,
+        amount: (s['amount'] as num).toDouble(),
+        paymentMethod: s['payment_method'] as String?,
+        paymentProofUrl: s['payment_proof_url'] as String?,
+        paymentStatus: status,
+        isOffset: status == 'netted',
+        settledAt: settledOf(s),
+      ));
+    }
+
+    for (final s in paidToMe) {
+      final exp = s['expenses'] as Map;
+      final status = s['payment_status'] as String? ?? 'confirmed';
+      records.add(SettlementRecord(
+        id: s['id'] as String,
+        expenseId: s['expense_id'] as String,
+        expenseTitle: exp['title'] as String? ?? 'Expense',
+        groupName: groupNameOf(exp),
+        counterpartName: nameMap[s['user_id']] ?? 'Unknown',
+        youPaid: false,
+        amount: (s['amount'] as num).toDouble(),
+        paymentMethod: s['payment_method'] as String?,
+        paymentProofUrl: s['payment_proof_url'] as String?,
+        paymentStatus: status,
+        isOffset: status == 'netted',
+        settledAt: settledOf(s),
+      ));
+    }
+
+    for (final g in guestSettled) {
+      final raw = (g['amount'] as num).toDouble();
+      // Guest rows that netted to zero at creation aren't real settlements.
+      if (raw.abs() < 0.01) continue;
+      final exp = g['expenses'] as Map;
+      final status = g['payment_status'] as String? ?? 'confirmed';
+      records.add(SettlementRecord(
+        id: g['id'] as String,
+        expenseId: g['expense_id'] as String,
+        expenseTitle: exp['title'] as String? ?? 'Expense',
+        groupName: groupNameOf(exp),
+        counterpartName: g['guest_name'] as String? ?? 'Guest',
+        // Positive = guest owed you (they paid you); negative = you owed them.
+        youPaid: raw < 0,
+        amount: raw.abs(),
+        paymentMethod: g['payment_method'] as String?,
+        paymentProofUrl: g['payment_proof_url'] as String?,
+        paymentStatus: status,
+        isOffset: status == 'netted',
+        isGuest: true,
+        settledAt: settledOf(g),
+      ));
+    }
+
+    records.sort((a, b) => b.settledAt.compareTo(a.settledAt));
+    return records;
   }
 
   Future<void> deleteExpense(String expenseId) async {

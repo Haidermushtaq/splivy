@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/expense_model.dart';
+import '../../providers/expenses_provider.dart';
 import '../../services/expenses_service.dart';
 import '../../utils/balance_text.dart';
 import '../../widgets/payment_bottom_sheet.dart';
@@ -20,6 +21,17 @@ class CustomExpensesScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final asyncData = ref.watch(_customExpensesProvider);
+
+    // After any change (especially archiving), refresh both this screen's
+    // local list and the global feeds the dashboard and balance read from, so
+    // an archived expense actually drops off the recent activity section.
+    void refreshAll() {
+      ref.invalidate(_customExpensesProvider);
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(archivedExpensesProvider);
+      ref.invalidate(customExpensesProvider);
+      ref.invalidate(userBalanceProvider);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -66,15 +78,14 @@ class CustomExpensesScreen extends ConsumerWidget {
             return _buildEmpty(context);
           }
           return RefreshIndicator(
-            onRefresh: () async =>
-                ref.invalidate(_customExpensesProvider),
+            onRefresh: () async => refreshAll(),
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(
                   horizontal: 16, vertical: 12),
               itemCount: expenses.length,
               itemBuilder: (context, i) => _ExpenseCard(
                 detail: expenses[i],
-                onRefresh: () => ref.invalidate(_customExpensesProvider),
+                onRefresh: refreshAll,
               ),
             ),
           );
