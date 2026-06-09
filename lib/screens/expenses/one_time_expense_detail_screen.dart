@@ -1,20 +1,44 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/expense_model.dart';
+import '../../providers/expenses_provider.dart';
 import '../../utils/balance_text.dart';
+import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 
 /// Read-only breakdown of a single one-time expense: total, who paid, and a
 /// per-person owe/owed list using plain wording (no +/- signs).
-class OneTimeExpenseDetailScreen extends StatelessWidget {
+class OneTimeExpenseDetailScreen extends ConsumerWidget {
   final CustomExpenseDetail detail;
 
   const OneTimeExpenseDetailScreen({super.key, required this.detail});
 
   static const _accent = Color(0xFF00D4AA);
+  static const _red = Color(0xFFFF6B6B);
 
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
+  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+    final ok = await showDeleteDialog(context, detail.expense.title);
+    if (ok != true || !context.mounted) return;
+    final navigator = Navigator.of(context);
+    try {
+      await ref.read(expensesServiceProvider).deleteExpense(detail.expense.id);
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(customExpensesProvider);
+      ref.invalidate(archivedExpensesProvider);
+      ref.invalidate(userBalanceProvider);
+      if (!context.mounted) return;
+      ErrorHandler.showSuccess(context, 'Expense deleted');
+      navigator.pop();
+    } catch (e) {
+      if (!context.mounted) return;
+      ErrorHandler.showError(context, e);
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final e = detail.expense;
 
     // Build a unified list of (name, amount, isSettled). Positive amount means
@@ -38,7 +62,17 @@ class OneTimeExpenseDetailScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(elevation: 0, title: const Text('Expense Details')),
+      appBar: AppBar(
+        elevation: 0,
+        title: const Text('Expense Details'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: _red),
+            tooltip: 'Delete expense',
+            onPressed: () => _confirmDelete(context, ref),
+          ),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
