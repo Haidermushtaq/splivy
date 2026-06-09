@@ -65,6 +65,24 @@ class ArchivedExpensesScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _confirmDelete(
+      BuildContext context, WidgetRef ref, RecentExpense expense) async {
+    final ok = await showDeleteDialog(context, expense.title);
+    if (ok != true) return;
+    try {
+      await ref.read(expensesServiceProvider).deleteExpense(expense.id);
+      ref.invalidate(archivedExpensesProvider);
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(customExpensesProvider);
+      ref.invalidate(userBalanceProvider);
+      if (!context.mounted) return;
+      ErrorHandler.showSuccess(context, 'Expense deleted');
+    } catch (e) {
+      if (!context.mounted) return;
+      ErrorHandler.showError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(archivedExpensesProvider);
@@ -159,19 +177,56 @@ class ArchivedExpensesScreen extends ConsumerWidget {
               style: const TextStyle(color: Colors.grey, fontSize: 12),
             ),
           ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'PKR ${expense.amount.toStringAsFixed(0)}',
-                style: const TextStyle(
-                    color: Colors.grey, fontWeight: FontWeight.bold),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'PKR ${expense.amount.toStringAsFixed(0)}',
+                    style: const TextStyle(
+                        color: Colors.grey, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 2),
+                  const Text(
+                    'Settled ✅',
+                    style: TextStyle(color: _accent, fontSize: 11),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              const Text(
-                'Settled ✅',
-                style: TextStyle(color: _accent, fontSize: 11),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, color: Colors.grey),
+                onSelected: (value) {
+                  if (value == 'unarchive') {
+                    _confirmUnarchive(context, ref, expense);
+                  } else if (value == 'delete') {
+                    _confirmDelete(context, ref, expense);
+                  }
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'unarchive',
+                    child: Row(
+                      children: [
+                        Icon(Icons.unarchive_outlined, color: _accent),
+                        SizedBox(width: 10),
+                        Text('Unarchive'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: Color(0xFFFF6B6B)),
+                        SizedBox(width: 10),
+                        Text('Delete'),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

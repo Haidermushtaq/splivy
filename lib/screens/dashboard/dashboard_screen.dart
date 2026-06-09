@@ -293,12 +293,13 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
               expense: expense,
               onTap: () => _openExpense(expense),
             );
-            // Only the payer can manage their own expense via swipe: swipe
-            // right to archive (if fully settled), swipe left to delete.
+            // Only the payer can manage their own expense via swipe: swipe to
+            // archive (only allowed once everyone has settled). Deletion lives
+            // in the expense detail screens.
             if (!expense.isPayer) return card;
             return Dismissible(
               key: Key(expense.id),
-              direction: DismissDirection.horizontal,
+              direction: DismissDirection.startToEnd,
               background: Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFF00D4AA),
@@ -308,29 +309,8 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
                 padding: const EdgeInsets.only(left: 20),
                 child: const Icon(Icons.archive_outlined, color: Colors.white),
               ),
-              secondaryBackground: Container(
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFF6B6B),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 20),
-                child: const Icon(Icons.delete, color: Colors.white),
-              ),
-              confirmDismiss: (direction) {
-                if (direction == DismissDirection.startToEnd) {
-                  return _confirmArchive(expense);
-                }
-                return showDeleteDialog(context, expense.title)
-                    .then((v) => v == true);
-              },
-              onDismissed: (direction) {
-                if (direction == DismissDirection.startToEnd) {
-                  _afterArchive();
-                } else {
-                  _deleteExpense(expense);
-                }
-              },
+              confirmDismiss: (direction) => _confirmArchive(expense),
+              onDismissed: (direction) => _afterArchive(),
               child: card,
             );
           },
@@ -364,48 +344,6 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
         content: const Text('Expense archived'),
         backgroundColor: const Color(0xFF00D4AA),
         duration: const Duration(seconds: 2),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _deleteExpense(RecentExpense expense) async {
-    final service = ref.read(expensesServiceProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    Map<String, dynamic>? snapshot;
-    try {
-      snapshot = await service.getExpenseSnapshot(expense.id);
-      await service.deleteExpense(expense.id);
-      ref.invalidate(recentExpensesProvider);
-      ref.invalidate(userBalanceProvider);
-      ref.invalidate(customExpensesProvider);
-    } catch (e) {
-      if (mounted) ErrorHandler.showError(context, e);
-      return;
-    }
-    final restorable = snapshot;
-    messenger.showSnackBar(
-      SnackBar(
-        content: const Text('Expense deleted'),
-        backgroundColor: const Color(0xFFFF6B6B),
-        action: SnackBarAction(
-          label: 'Undo',
-          textColor: Colors.white,
-          onPressed: () async {
-            try {
-              await service.restoreExpenseSnapshot(restorable);
-              ref.invalidate(recentExpensesProvider);
-              ref.invalidate(userBalanceProvider);
-              ref.invalidate(customExpensesProvider);
-            } catch (e) {
-              if (mounted) ErrorHandler.showError(context, e);
-            }
-          },
-        ),
-        duration: const Duration(seconds: 4),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),

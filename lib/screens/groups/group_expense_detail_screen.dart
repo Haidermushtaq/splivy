@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/expense_model.dart';
+import '../../providers/expenses_provider.dart';
 import '../../services/expenses_service.dart';
+import '../../utils/error_handler.dart';
+import '../../widgets/confirm_dialog.dart';
 
 /// Read-only full detail of a single group expense: header (title, group, date,
 /// total, who paid, note) plus the per-person owe/owed breakdown split into
 /// outstanding and settled (offsetting) history.
-class GroupExpenseDetailScreen extends StatefulWidget {
+class GroupExpenseDetailScreen extends ConsumerStatefulWidget {
   final String expenseId;
   final String? groupName;
 
@@ -16,11 +20,12 @@ class GroupExpenseDetailScreen extends StatefulWidget {
   });
 
   @override
-  State<GroupExpenseDetailScreen> createState() =>
+  ConsumerState<GroupExpenseDetailScreen> createState() =>
       _GroupExpenseDetailScreenState();
 }
 
-class _GroupExpenseDetailScreenState extends State<GroupExpenseDetailScreen> {
+class _GroupExpenseDetailScreenState
+    extends ConsumerState<GroupExpenseDetailScreen> {
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
@@ -32,13 +37,42 @@ class _GroupExpenseDetailScreenState extends State<GroupExpenseDetailScreen> {
     _future = ExpensesService().getGroupExpenseDetail(widget.expenseId);
   }
 
+  Future<void> _confirmDelete() async {
+    final ok = await showDeleteDialog(context, 'this expense');
+    if (ok != true || !mounted) return;
+    final navigator = Navigator.of(context);
+    try {
+      await ref.read(expensesServiceProvider).deleteExpense(widget.expenseId);
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(customExpensesProvider);
+      ref.invalidate(archivedExpensesProvider);
+      ref.invalidate(userBalanceProvider);
+      if (!mounted) return;
+      ErrorHandler.showSuccess(context, 'Expense deleted');
+      navigator.pop();
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.showError(context, e);
+    }
+  }
+
   String _formatDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(elevation: 0, title: const Text('Expense Details')),
+      appBar: AppBar(
+        elevation: 0,
+        title: const Text('Expense Details'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: _red),
+            tooltip: 'Delete expense',
+            onPressed: _confirmDelete,
+          ),
+        ],
+      ),
       body: FutureBuilder<GroupExpenseDetail>(
         future: _future,
         builder: (context, snap) {
