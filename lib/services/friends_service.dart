@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/friend_model.dart';
 import 'expenses_service.dart';
+import 'local_cache.dart';
 
 class FriendsService {
   final _client = Supabase.instance.client;
@@ -58,7 +59,18 @@ class FriendsService {
     await _client.from('friends').delete().eq('id', friendshipId);
   }
 
-  Future<List<Friend>> getFriends() async {
+  Future<List<Friend>> getFriends() {
+    return cachedRead<List<Friend>>(
+      key: 'friends',
+      live: _getFriendsLive,
+      toCache: (list) => list.map((f) => f.toCache()).toList(),
+      fromCache: (j) => (j as List)
+          .map((m) => Friend.fromCache((m as Map).cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+
+  Future<List<Friend>> _getFriendsLive() async {
     final rows = await _client
         .from('friends')
         .select()
@@ -104,7 +116,19 @@ class FriendsService {
     return result;
   }
 
-  Future<List<PendingRequest>> getPendingRequests() async {
+  Future<List<PendingRequest>> getPendingRequests() {
+    return cachedRead<List<PendingRequest>>(
+      key: 'pending_requests',
+      live: _getPendingRequestsLive,
+      toCache: (list) => list.map((r) => r.toCache()).toList(),
+      fromCache: (j) => (j as List)
+          .map((m) =>
+              PendingRequest.fromCache((m as Map).cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+
+  Future<List<PendingRequest>> _getPendingRequestsLive() async {
     final rows = await _client
         .from('friends')
         .select()
@@ -152,7 +176,20 @@ class FriendsService {
   /// newest first. Each item carries its source (group name or "One-time") and
   /// whether it's still outstanding or part of the settled/offsetting history.
   /// Powers the per-friend breakdown.
-  Future<List<FriendExpense>> getExpensesWithFriend(String otherUserId) async {
+  Future<List<FriendExpense>> getExpensesWithFriend(String otherUserId) {
+    return cachedRead<List<FriendExpense>>(
+      key: 'friend_expenses:$otherUserId',
+      live: () => _getExpensesWithFriendLive(otherUserId),
+      toCache: (list) => list.map((e) => e.toCache()).toList(),
+      fromCache: (j) => (j as List)
+          .map((m) =>
+              FriendExpense.fromCache((m as Map).cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+
+  Future<List<FriendExpense>> _getExpensesWithFriendLive(
+      String otherUserId) async {
     const embed =
         'expenses!inner(title, created_at, group_id, is_archived)';
 

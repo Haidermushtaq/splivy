@@ -5,6 +5,8 @@ import '../../providers/expenses_provider.dart';
 import '../../services/expenses_service.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/edit_expense_dialog.dart';
+import '../expenses/add_expense_screen.dart';
 
 /// Read-only full detail of a single group expense: header (title, group, date,
 /// total, who paid, note) plus the per-person owe/owed breakdown split into
@@ -30,11 +32,92 @@ class _GroupExpenseDetailScreenState
   static const _red = Color(0xFFFF6B6B);
 
   late Future<GroupExpenseDetail> _future;
+  GroupExpenseDetail? _detail;
 
   @override
   void initState() {
     super.initState();
     _future = ExpensesService().getGroupExpenseDetail(widget.expenseId);
+  }
+
+  Future<void> _editExpense(GroupExpenseDetail detail) async {
+    final service = ref.read(expensesServiceProvider);
+
+    bool canFull = false;
+    try {
+      canFull = await service.canFullyEdit(widget.expenseId);
+    } catch (_) {
+      canFull = false;
+    }
+    if (!mounted) return;
+
+    if (canFull) {
+      await _editFully(detail);
+    } else {
+      await _editMetadata(detail);
+    }
+  }
+
+  /// Full edit via the prefilled add-expense form. On success the detail is
+  /// reloaded and the affected lists are refreshed.
+  Future<void> _editFully(GroupExpenseDetail detail) async {
+    final service = ref.read(expensesServiceProvider);
+    final EditableExpense editable;
+    try {
+      editable = await service.getEditableExpense(widget.expenseId);
+    } catch (e) {
+      if (mounted) ErrorHandler.showError(context, e);
+      return;
+    }
+    if (!mounted) return;
+
+    final changed = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => AddExpenseScreen(
+          groupId: editable.groupId ?? '',
+          groupName: detail.groupName,
+          editExpense: editable,
+        ),
+      ),
+    );
+    if (changed != true || !mounted) return;
+    ref.invalidate(recentExpensesProvider);
+    ref.invalidate(customExpensesProvider);
+    ref.invalidate(archivedExpensesProvider);
+    ref.invalidate(userBalanceProvider);
+    setState(() {
+      _future = ExpensesService().getGroupExpenseDetail(widget.expenseId);
+    });
+  }
+
+  /// Fallback metadata-only edit when settled/offset debts block a full rewrite.
+  Future<void> _editMetadata(GroupExpenseDetail detail) async {
+    final e = detail.expense;
+    final result = await showEditExpenseDialog(
+      context,
+      title: e.title,
+      category: e.category,
+      note: e.note,
+    );
+    if (result == null || !mounted) return;
+    try {
+      await ref.read(expensesServiceProvider).updateExpenseMeta(
+            expenseId: widget.expenseId,
+            title: result.title,
+            category: result.category,
+            note: result.note,
+          );
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(archivedExpensesProvider);
+      if (!mounted) return;
+      setState(() {
+        _future = ExpensesService().getGroupExpenseDetail(widget.expenseId);
+      });
+      ErrorHandler.showSuccess(context, 'Expense updated');
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.showError(context, e);
+    }
   }
 
   Future<void> _confirmDelete() async {
@@ -66,6 +149,11 @@ class _GroupExpenseDetailScreenState
         elevation: 0,
         title: const Text('Expense Details'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined, color: _accent),
+            tooltip: 'Edit expense',
+            onPressed: _detail == null ? null : () => _editExpense(_detail!),
+          ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: _red),
             tooltip: 'Delete expense',
@@ -113,6 +201,7 @@ class _GroupExpenseDetailScreenState
   }
 
   Widget _buildContent(GroupExpenseDetail detail) {
+    _detail = detail;
     final outstanding =
         detail.edges.where((edge) => !edge.isSettled).toList();
     final settled = detail.edges.where((edge) => edge.isSettled).toList();

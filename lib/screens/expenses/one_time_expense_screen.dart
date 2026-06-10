@@ -60,7 +60,11 @@ const _categories = [
 ];
 
 class OneTimeExpenseScreen extends ConsumerStatefulWidget {
-  const OneTimeExpenseScreen({super.key});
+  /// When set, the screen opens in edit mode: the form is prefilled from this
+  /// expense and submitting rewrites it instead of creating a new one.
+  final EditableExpense? editExpense;
+
+  const OneTimeExpenseScreen({super.key, this.editExpense});
 
   @override
   ConsumerState<OneTimeExpenseScreen> createState() =>
@@ -112,10 +116,58 @@ class _OneTimeExpenseScreenState extends ConsumerState<OneTimeExpenseScreen> {
 
   int get _splitCount => _registeredSplitCount + _guests.length;
 
+  bool get _isEditing => widget.editExpense != null;
+
+  static String _fmt(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
   @override
   void initState() {
     super.initState();
-    _participants.add(_Participant(id: _currentUserId, name: 'You', isYou: true));
+    final edit = widget.editExpense;
+    if (edit == null) {
+      _participants
+          .add(_Participant(id: _currentUserId, name: 'You', isYou: true));
+    } else {
+      _prefillFromEdit(edit);
+    }
+  }
+
+  void _prefillFromEdit(EditableExpense edit) {
+    _titleController.text = edit.title;
+    _amountController.text = _fmt(edit.totalAmount);
+    _selectedCategory = _categories.any((c) => c.name == edit.category)
+        ? edit.category
+        : 'Other';
+    _noteController.text = edit.note ?? '';
+    _isMultiPayer = edit.isMultiPayer;
+    _isCustomSplit = edit.isCustomSplit;
+
+    for (final p in edit.participants) {
+      final part = _Participant(
+        id: p.userId,
+        name: p.isYou ? 'You' : p.name,
+        isYou: p.isYou,
+      );
+      part.includedInSplit = p.includedInSplit;
+      part.paidController.text = _fmt(p.paid);
+      part.owedController.text = _fmt(p.owed);
+      _participants.add(part);
+    }
+    for (final g in edit.guests) {
+      final entry = _GuestEntry();
+      entry.nameCtrl.text = g.name;
+      entry.phoneCtrl.text = g.phone;
+      entry.amountCtrl.text = _fmt(g.owed);
+      entry.paidCtrl.text = _fmt(g.paid);
+      _guests.add(entry);
+    }
+
+    final payerId = edit.singlePayerId;
+    final idx = payerId != null
+        ? _participants.indexWhere((p) => p.id == payerId)
+        : _participants.indexWhere((p) => p.isYou);
+    _selectedPayerIndex = idx >= 0 ? idx : 0;
   }
 
   @override
@@ -310,28 +362,48 @@ class _OneTimeExpenseScreenState extends ConsumerState<OneTimeExpenseScreen> {
         .map((p) => {'userId': p.id, 'amountOwed': p.owedAmount})
         .toList();
 
+    final note = _noteController.text.trim().isEmpty
+        ? null
+        : _noteController.text.trim();
+
     setState(() => _isLoading = true);
     try {
-      await ExpensesService().addOneTimeExpense(
-        title: _titleController.text.trim(),
-        totalAmount: _totalAmount,
-        isMultiPayer: _isMultiPayer,
-        payerAmounts: _isMultiPayer ? payerAmounts : [],
-        splitAmounts: splitAmounts,
-        category: _selectedCategory,
-        note: _noteController.text.trim().isEmpty
-            ? null
-            : _noteController.text.trim(),
-        guestSplits: guestInputs,
-      );
+      if (_isEditing) {
+        await ExpensesService().updateExpenseFull(
+          expenseId: widget.editExpense!.expenseId,
+          title: _titleController.text.trim(),
+          totalAmount: _totalAmount,
+          isMultiPayer: _isMultiPayer,
+          payerAmounts: _isMultiPayer ? payerAmounts : [],
+          splitAmounts: splitAmounts,
+          category: _selectedCategory,
+          note: note,
+          guestSplits: guestInputs,
+        );
+      } else {
+        await ExpensesService().addOneTimeExpense(
+          title: _titleController.text.trim(),
+          totalAmount: _totalAmount,
+          isMultiPayer: _isMultiPayer,
+          payerAmounts: _isMultiPayer ? payerAmounts : [],
+          splitAmounts: splitAmounts,
+          category: _selectedCategory,
+          note: note,
+          guestSplits: guestInputs,
+        );
+      }
       if (mounted) {
-        _showSnackBar('One-time expense added!', isSuccess: true);
+        _showSnackBar(
+            _isEditing ? 'Expense updated!' : 'One-time expense added!',
+            isSuccess: true);
         Future.delayed(const Duration(milliseconds: 600), () {
           if (mounted) Navigator.of(context).pop(true);
         });
       }
     } catch (e) {
-      if (mounted) _showSnackBar('Failed to add expense: $e');
+      if (mounted) {
+        _showSnackBar('Failed to ${_isEditing ? 'update' : 'add'} expense: $e');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -482,7 +554,7 @@ class _OneTimeExpenseScreenState extends ConsumerState<OneTimeExpenseScreen> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text('One-time Expense'),
+        title: Text(_isEditing ? 'Edit Expense' : 'One-time Expense'),
         actions: [
           IconButton(
             icon: const Icon(Icons.check_rounded, color: _accent),
@@ -1315,8 +1387,8 @@ class _OneTimeExpenseScreenState extends ConsumerState<OneTimeExpenseScreen> {
                 child: CircularProgressIndicator(
                     color: Colors.black, strokeWidth: 2.5),
               )
-            : const Text('Add Expense',
-                style: TextStyle(
+            : Text(_isEditing ? 'Save Changes' : 'Add Expense',
+                style: const TextStyle(
                     color: Colors.black,
                     fontWeight: FontWeight.bold,
                     fontSize: 16)),

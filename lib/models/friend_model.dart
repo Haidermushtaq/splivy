@@ -44,6 +44,30 @@ class Friend {
     required this.status,
     this.avatarUrl,
   });
+
+  Map<String, dynamic> toCache() => {
+        'id': id,
+        'user_id': userId,
+        'friend_id': friendId,
+        'full_name': fullName,
+        'username': username,
+        'email': email,
+        'balance': balance,
+        'status': status,
+        'avatar_url': avatarUrl,
+      };
+
+  factory Friend.fromCache(Map<String, dynamic> j) => Friend(
+        id: j['id'] as String,
+        userId: j['user_id'] as String,
+        friendId: j['friend_id'] as String,
+        fullName: j['full_name'] as String,
+        username: j['username'] as String,
+        email: j['email'] as String? ?? '',
+        balance: (j['balance'] as num?)?.toDouble() ?? 0,
+        status: j['status'] as String,
+        avatarUrl: j['avatar_url'] as String?,
+      );
 }
 
 /// A single expense between the current user and a friend.
@@ -90,6 +114,30 @@ class FriendExpense {
   /// The original debt before any offsetting was applied.
   double get originalAmount =>
       paymentStatus == 'netted' ? amount : amount + amountPaid;
+
+  Map<String, dynamic> toCache() => {
+        'expense_id': expenseId,
+        'title': title,
+        'amount': amount,
+        'they_owe_me': theyOweMe,
+        'date': date.toIso8601String(),
+        'group_name': groupName,
+        'is_settled': isSettled,
+        'payment_status': paymentStatus,
+        'amount_paid': amountPaid,
+      };
+
+  factory FriendExpense.fromCache(Map<String, dynamic> j) => FriendExpense(
+        expenseId: j['expense_id'] as String,
+        title: j['title'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        theyOweMe: j['they_owe_me'] as bool,
+        date: DateTime.parse(j['date'] as String),
+        groupName: j['group_name'] as String?,
+        isSettled: j['is_settled'] as bool? ?? false,
+        paymentStatus: j['payment_status'] as String? ?? 'pending',
+        amountPaid: (j['amount_paid'] as num?)?.toDouble() ?? 0,
+      );
 }
 
 class PendingRequest {
@@ -106,4 +154,20 @@ class PendingRequest {
     required this.username,
     this.avatarUrl,
   });
+
+  Map<String, dynamic> toCache() => {
+        'id': id,
+        'from_user_id': fromUserId,
+        'full_name': fullName,
+        'username': username,
+        'avatar_url': avatarUrl,
+      };
+
+  factory PendingRequest.fromCache(Map<String, dynamic> j) => PendingRequest(
+        id: j['id'] as String,
+        fromUserId: j['from_user_id'] as String,
+        fullName: j['full_name'] as String,
+        username: j['username'] as String,
+        avatarUrl: j['avatar_url'] as String?,
+      );
 }

@@ -102,6 +102,42 @@ class Expense {
       createdAt: DateTime.parse(map['created_at'] as String),
     );
   }
+
+  Map<String, dynamic> toCache() => {
+        'id': id,
+        'group_id': groupId,
+        'title': title,
+        'amount': amount,
+        'paid_by': paidBy,
+        'paid_by_name': paidByName,
+        'category': category,
+        'note': note,
+        'user_share': userShare,
+        'user_owes': userOwes,
+        'is_settled': isSettled,
+        'is_custom': isCustom,
+        'is_archived': isArchived,
+        'is_multi_payer': isMultiPayer,
+        'created_at': createdAt.toIso8601String(),
+      };
+
+  factory Expense.fromCache(Map<String, dynamic> j) => Expense(
+        id: j['id'] as String,
+        groupId: j['group_id'] as String?,
+        title: j['title'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        paidBy: j['paid_by'] as String?,
+        paidByName: j['paid_by_name'] as String? ?? 'Unknown',
+        category: j['category'] as String? ?? 'Other',
+        note: j['note'] as String?,
+        userShare: (j['user_share'] as num?)?.toDouble() ?? 0,
+        userOwes: j['user_owes'] as bool? ?? false,
+        isSettled: j['is_settled'] as bool? ?? false,
+        isCustom: j['is_custom'] as bool? ?? false,
+        isArchived: j['is_archived'] as bool? ?? false,
+        isMultiPayer: j['is_multi_payer'] as bool? ?? false,
+        createdAt: DateTime.parse(j['created_at'] as String),
+      );
 }
 
 class UserBalance {
@@ -111,6 +147,14 @@ class UserBalance {
   const UserBalance({required this.totalOwed, required this.totalOwing});
 
   double get netBalance => totalOwed - totalOwing;
+
+  Map<String, dynamic> toCache() =>
+      {'total_owed': totalOwed, 'total_owing': totalOwing};
+
+  factory UserBalance.fromCache(Map<String, dynamic> j) => UserBalance(
+        totalOwed: (j['total_owed'] as num).toDouble(),
+        totalOwing: (j['total_owing'] as num).toDouble(),
+      );
 }
 
 class DebtItem {
@@ -151,6 +195,38 @@ class DebtItem {
   bool get isNetted => paymentStatus == 'netted';
   bool get isDisputed => paymentStatus == 'disputed';
   bool get isSettled => isConfirmed || isCashSettled || isNetted;
+
+  Map<String, dynamic> toCache() => {
+        'expense_id': expenseId,
+        'split_id': splitId,
+        'name': name,
+        'group_name': groupName,
+        'amount': amount,
+        'due_since': dueSince,
+        'you_owe': youOwe,
+        'expense_title': expenseTitle,
+        'receiver_phone': receiverPhone,
+        'payment_status': paymentStatus,
+        'payment_proof_url': paymentProofUrl,
+        'payment_method': paymentMethod,
+        'avatar_url': avatarUrl,
+      };
+
+  factory DebtItem.fromCache(Map<String, dynamic> j) => DebtItem(
+        expenseId: j['expense_id'] as String,
+        splitId: j['split_id'] as String,
+        name: j['name'] as String,
+        groupName: j['group_name'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        dueSince: j['due_since'] as String,
+        youOwe: j['you_owe'] as bool,
+        expenseTitle: j['expense_title'] as String,
+        receiverPhone: j['receiver_phone'] as String?,
+        paymentStatus: j['payment_status'] as String? ?? 'pending',
+        paymentProofUrl: j['payment_proof_url'] as String?,
+        paymentMethod: j['payment_method'] as String?,
+        avatarUrl: j['avatar_url'] as String?,
+      );
 }
 
 class GuestSplit {
@@ -182,6 +258,30 @@ class GuestSplit {
     required this.isSettled,
     required this.createdAt,
   });
+
+  Map<String, dynamic> toCache() => {
+        'id': id,
+        'expense_id': expenseId,
+        'guest_name': guestName,
+        'guest_phone': guestPhone,
+        'amount': amount,
+        'share': share,
+        'amount_paid': amountPaid,
+        'is_settled': isSettled,
+        'created_at': createdAt.toIso8601String(),
+      };
+
+  factory GuestSplit.fromCache(Map<String, dynamic> j) => GuestSplit(
+        id: j['id'] as String,
+        expenseId: j['expense_id'] as String,
+        guestName: j['guest_name'] as String,
+        guestPhone: j['guest_phone'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        share: (j['share'] as num?)?.toDouble() ?? 0,
+        amountPaid: (j['amount_paid'] as num?)?.toDouble() ?? 0,
+        isSettled: j['is_settled'] as bool? ?? false,
+        createdAt: DateTime.parse(j['created_at'] as String),
+      );
 }
 
 /// An informational debt between two guests within a single expense, derived
@@ -219,6 +319,91 @@ class GuestGuestDebt {
       isSettled: json['is_settled'] as bool? ?? false,
     );
   }
+
+  Map<String, dynamic> toCache() => {
+        'id': id,
+        'expense_id': expenseId,
+        'debtor_name': debtorName,
+        'debtor_phone': debtorPhone,
+        'creditor_name': creditorName,
+        'creditor_phone': creditorPhone,
+        'amount': amount,
+        'is_settled': isSettled,
+      };
+
+  factory GuestGuestDebt.fromCache(Map<String, dynamic> j) =>
+      GuestGuestDebt.fromJson(j);
+}
+
+/// A registered participant reconstructed from a stored expense so it can be
+/// prefilled into the add/edit form. [owed] is recovered as `paid - net`, where
+/// net comes from the minimized settlement edges; [includedInSplit] is true when
+/// the person carries any share of the bill.
+class EditableParticipant {
+  final String userId;
+  final String name;
+  final bool isYou;
+  final double paid;
+  final double owed;
+  final bool includedInSplit;
+
+  const EditableParticipant({
+    required this.userId,
+    required this.name,
+    required this.isYou,
+    required this.paid,
+    required this.owed,
+    required this.includedInSplit,
+  });
+}
+
+/// A guest reconstructed from a stored expense for prefilling the edit form.
+/// Guests store their share and paid amount directly, so they're always exact.
+class EditableGuest {
+  final String name;
+  final String phone;
+  final double owed;
+  final double paid;
+
+  const EditableGuest({
+    required this.name,
+    required this.phone,
+    required this.owed,
+    required this.paid,
+  });
+}
+
+/// A whole expense reconstructed into the shape the add/edit form needs:
+/// header fields plus per-person paid/owed amounts. Used only by the guarded
+/// full-edit flow; never cached (editing requires connectivity).
+class EditableExpense {
+  final String expenseId;
+  final String? groupId;
+  final String title;
+  final double totalAmount;
+  final String category;
+  final String? note;
+  final bool isMultiPayer;
+  final bool isCustomSplit;
+  final String? singlePayerId;
+  final List<EditableParticipant> participants;
+  final List<EditableGuest> guests;
+
+  const EditableExpense({
+    required this.expenseId,
+    required this.groupId,
+    required this.title,
+    required this.totalAmount,
+    required this.category,
+    required this.note,
+    required this.isMultiPayer,
+    required this.isCustomSplit,
+    required this.singlePayerId,
+    required this.participants,
+    required this.guests,
+  });
+
+  bool get isOneTime => groupId == null;
 }
 
 class GuestSplitInput {
@@ -261,6 +446,24 @@ class FriendDebt {
     required this.amount,
     required this.isSettled,
   });
+
+  Map<String, dynamic> toCache() => {
+        'split_id': splitId,
+        'user_id': userId,
+        'name': name,
+        'phone': phone,
+        'amount': amount,
+        'is_settled': isSettled,
+      };
+
+  factory FriendDebt.fromCache(Map<String, dynamic> j) => FriendDebt(
+        splitId: j['split_id'] as String,
+        userId: j['user_id'] as String,
+        name: j['name'] as String,
+        phone: j['phone'] as String?,
+        amount: (j['amount'] as num).toDouble(),
+        isSettled: j['is_settled'] as bool? ?? false,
+      );
 }
 
 /// A single contributor's payment toward an expense, for display in the
@@ -275,6 +478,16 @@ class PayerContribution {
     required this.amount,
     this.isYou = false,
   });
+
+  Map<String, dynamic> toCache() =>
+      {'name': name, 'amount': amount, 'is_you': isYou};
+
+  factory PayerContribution.fromCache(Map<String, dynamic> j) =>
+      PayerContribution(
+        name: j['name'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        isYou: j['is_you'] as bool? ?? false,
+      );
 }
 
 /// A single settlement edge within a group expense: [debtorName] owes
@@ -318,6 +531,31 @@ class ExpenseSplitEdge {
   /// The original debt before any offsetting was applied.
   double get originalAmount =>
       paymentStatus == 'netted' ? amount : amount + amountPaid;
+
+  Map<String, dynamic> toCache() => {
+        'split_id': splitId,
+        'debtor_id': debtorId,
+        'debtor_name': debtorName,
+        'creditor_id': creditorId,
+        'creditor_name': creditorName,
+        'amount': amount,
+        'is_settled': isSettled,
+        'payment_status': paymentStatus,
+        'amount_paid': amountPaid,
+      };
+
+  factory ExpenseSplitEdge.fromCache(Map<String, dynamic> j) =>
+      ExpenseSplitEdge(
+        splitId: j['split_id'] as String,
+        debtorId: j['debtor_id'] as String,
+        debtorName: j['debtor_name'] as String,
+        creditorId: j['creditor_id'] as String,
+        creditorName: j['creditor_name'] as String,
+        amount: (j['amount'] as num).toDouble(),
+        isSettled: j['is_settled'] as bool? ?? false,
+        paymentStatus: j['payment_status'] as String? ?? 'pending',
+        amountPaid: (j['amount_paid'] as num?)?.toDouble() ?? 0,
+      );
 }
 
 /// Full detail of a single group expense: the expense, its group name, the
@@ -334,6 +572,27 @@ class GroupExpenseDetail {
     this.payers = const [],
     this.edges = const [],
   });
+
+  Map<String, dynamic> toCache() => {
+        'expense': expense.toCache(),
+        'group_name': groupName,
+        'payers': payers.map((p) => p.toCache()).toList(),
+        'edges': edges.map((e) => e.toCache()).toList(),
+      };
+
+  factory GroupExpenseDetail.fromCache(Map<String, dynamic> j) =>
+      GroupExpenseDetail(
+        expense: Expense.fromCache((j['expense'] as Map).cast<String, dynamic>()),
+        groupName: j['group_name'] as String,
+        payers: (j['payers'] as List)
+            .map((p) =>
+                PayerContribution.fromCache((p as Map).cast<String, dynamic>()))
+            .toList(),
+        edges: (j['edges'] as List)
+            .map((e) =>
+                ExpenseSplitEdge.fromCache((e as Map).cast<String, dynamic>()))
+            .toList(),
+      );
 }
 
 /// A single settled debt between the current user and one counterpart, used by
@@ -377,6 +636,39 @@ class SettlementRecord {
 
   bool get isCash =>
       paymentStatus == 'cash_settled' || paymentMethod == 'cash';
+
+  Map<String, dynamic> toCache() => {
+        'id': id,
+        'expense_id': expenseId,
+        'expense_title': expenseTitle,
+        'group_name': groupName,
+        'counterpart_name': counterpartName,
+        'you_paid': youPaid,
+        'amount': amount,
+        'payment_method': paymentMethod,
+        'payment_proof_url': paymentProofUrl,
+        'payment_status': paymentStatus,
+        'is_offset': isOffset,
+        'is_guest': isGuest,
+        'settled_at': settledAt.toIso8601String(),
+      };
+
+  factory SettlementRecord.fromCache(Map<String, dynamic> j) =>
+      SettlementRecord(
+        id: j['id'] as String,
+        expenseId: j['expense_id'] as String,
+        expenseTitle: j['expense_title'] as String,
+        groupName: j['group_name'] as String,
+        counterpartName: j['counterpart_name'] as String,
+        youPaid: j['you_paid'] as bool,
+        amount: (j['amount'] as num).toDouble(),
+        paymentMethod: j['payment_method'] as String?,
+        paymentProofUrl: j['payment_proof_url'] as String?,
+        paymentStatus: j['payment_status'] as String? ?? 'confirmed',
+        isOffset: j['is_offset'] as bool? ?? false,
+        isGuest: j['is_guest'] as bool? ?? false,
+        settledAt: DateTime.parse(j['settled_at'] as String),
+      );
 }
 
 class CustomExpenseDetail {
@@ -398,4 +690,33 @@ class CustomExpenseDetail {
       guests.every((g) => g.isSettled) &&
       friendDebts.every((f) => f.isSettled) &&
       guestGuestDebts.every((d) => d.isSettled);
+
+  Map<String, dynamic> toCache() => {
+        'expense': expense.toCache(),
+        'guests': guests.map((g) => g.toCache()).toList(),
+        'friend_debts': friendDebts.map((f) => f.toCache()).toList(),
+        'guest_guest_debts':
+            guestGuestDebts.map((d) => d.toCache()).toList(),
+        'payers': payers.map((p) => p.toCache()).toList(),
+      };
+
+  factory CustomExpenseDetail.fromCache(Map<String, dynamic> j) =>
+      CustomExpenseDetail(
+        expense:
+            Expense.fromCache((j['expense'] as Map).cast<String, dynamic>()),
+        guests: (j['guests'] as List)
+            .map((g) => GuestSplit.fromCache((g as Map).cast<String, dynamic>()))
+            .toList(),
+        friendDebts: (j['friend_debts'] as List)
+            .map((f) => FriendDebt.fromCache((f as Map).cast<String, dynamic>()))
+            .toList(),
+        guestGuestDebts: (j['guest_guest_debts'] as List)
+            .map((d) =>
+                GuestGuestDebt.fromCache((d as Map).cast<String, dynamic>()))
+            .toList(),
+        payers: (j['payers'] as List)
+            .map((p) =>
+                PayerContribution.fromCache((p as Map).cast<String, dynamic>()))
+            .toList(),
+      );
 }

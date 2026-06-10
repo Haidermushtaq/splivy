@@ -5,25 +5,50 @@ import '../../providers/expenses_provider.dart';
 import '../../utils/balance_text.dart';
 import '../../utils/error_handler.dart';
 import '../../widgets/confirm_dialog.dart';
+import '../../widgets/edit_expense_dialog.dart';
+import 'one_time_expense_screen.dart';
 
-/// Read-only breakdown of a single one-time expense: total, who paid, and a
-/// per-person owe/owed list using plain wording (no +/- signs).
-class OneTimeExpenseDetailScreen extends ConsumerWidget {
+/// Breakdown of a single one-time expense: total, who paid, and a per-person
+/// owe/owed list using plain wording (no +/- signs). The descriptive fields
+/// (title, category, note) can be edited in place.
+class OneTimeExpenseDetailScreen extends ConsumerStatefulWidget {
   final CustomExpenseDetail detail;
 
   const OneTimeExpenseDetailScreen({super.key, required this.detail});
 
+  @override
+  ConsumerState<OneTimeExpenseDetailScreen> createState() =>
+      _OneTimeExpenseDetailScreenState();
+}
+
+class _OneTimeExpenseDetailScreenState
+    extends ConsumerState<OneTimeExpenseDetailScreen> {
   static const _accent = Color(0xFF00D4AA);
   static const _red = Color(0xFFFF6B6B);
 
+  late String _title;
+  late String _category;
+  late String? _note;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.detail.expense;
+    _title = e.title;
+    _category = e.category;
+    _note = e.note;
+  }
+
   String _formatDate(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
-    final ok = await showDeleteDialog(context, detail.expense.title);
+  Future<void> _confirmDelete(BuildContext context) async {
+    final ok = await showDeleteDialog(context, _title);
     if (ok != true || !context.mounted) return;
     final navigator = Navigator.of(context);
     try {
-      await ref.read(expensesServiceProvider).deleteExpense(detail.expense.id);
+      await ref
+          .read(expensesServiceProvider)
+          .deleteExpense(widget.detail.expense.id);
       ref.invalidate(recentExpensesProvider);
       ref.invalidate(customExpensesProvider);
       ref.invalidate(archivedExpensesProvider);
@@ -37,8 +62,91 @@ class OneTimeExpenseDetailScreen extends ConsumerWidget {
     }
   }
 
+  Future<void> _editExpense(BuildContext context) async {
+    final service = ref.read(expensesServiceProvider);
+    final expenseId = widget.detail.expense.id;
+
+    bool canFull = false;
+    try {
+      canFull = await service.canFullyEdit(expenseId);
+    } catch (_) {
+      canFull = false;
+    }
+    if (!context.mounted) return;
+
+    if (canFull) {
+      await _editFully(context, service, expenseId);
+    } else {
+      await _editMetadata(context, service, expenseId);
+    }
+  }
+
+  /// Full edit (amounts, payers, people) via the prefilled add-expense form.
+  /// On success the providers are refreshed and this detail screen is popped,
+  /// since its passed-in snapshot is now stale.
+  Future<void> _editFully(
+      BuildContext context, dynamic service, String expenseId) async {
+    final EditableExpense editable;
+    try {
+      editable = await service.getEditableExpense(expenseId);
+    } catch (e) {
+      if (context.mounted) ErrorHandler.showError(context, e);
+      return;
+    }
+    if (!context.mounted) return;
+
+    final navigator = Navigator.of(context);
+    final changed = await navigator.push<bool>(
+      MaterialPageRoute(
+        builder: (_) => OneTimeExpenseScreen(editExpense: editable),
+      ),
+    );
+    if (changed == true) {
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(customExpensesProvider);
+      ref.invalidate(archivedExpensesProvider);
+      ref.invalidate(userBalanceProvider);
+      navigator.pop();
+    }
+  }
+
+  /// Fallback metadata-only edit (title, category, note) when the expense has
+  /// settled or offset debts that a full rewrite would clobber.
+  Future<void> _editMetadata(
+      BuildContext context, dynamic service, String expenseId) async {
+    final result = await showEditExpenseDialog(
+      context,
+      title: _title,
+      category: _category,
+      note: _note,
+    );
+    if (result == null || !context.mounted) return;
+    try {
+      await service.updateExpenseMeta(
+        expenseId: expenseId,
+        title: result.title,
+        category: result.category,
+        note: result.note,
+      );
+      ref.invalidate(recentExpensesProvider);
+      ref.invalidate(customExpensesProvider);
+      ref.invalidate(archivedExpensesProvider);
+      if (!context.mounted) return;
+      setState(() {
+        _title = result.title;
+        _category = result.category;
+        _note = result.note;
+      });
+      ErrorHandler.showSuccess(context, 'Expense updated');
+    } catch (e) {
+      if (!context.mounted) return;
+      ErrorHandler.showError(context, e);
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final detail = widget.detail;
     final e = detail.expense;
 
     // Build a unified list of (name, amount, isSettled). Positive amount means
@@ -67,9 +175,14 @@ class OneTimeExpenseDetailScreen extends ConsumerWidget {
         title: const Text('Expense Details'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.edit_outlined, color: _accent),
+            tooltip: 'Edit expense',
+            onPressed: () => _editExpense(context),
+          ),
+          IconButton(
             icon: const Icon(Icons.delete_outline, color: _red),
             tooltip: 'Delete expense',
-            onPressed: () => _confirmDelete(context, ref),
+            onPressed: () => _confirmDelete(context),
           ),
         ],
       ),
@@ -128,7 +241,7 @@ class OneTimeExpenseDetailScreen extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            e.title,
+            _title,
             style: TextStyle(
               color: onSurface,
               fontSize: 20,

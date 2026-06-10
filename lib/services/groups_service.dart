@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/group_model.dart';
 import 'expenses_service.dart';
+import 'local_cache.dart';
 
 class GroupsService {
   final _client = Supabase.instance.client;
@@ -22,7 +23,18 @@ class GroupsService {
     return Group.fromMap(row, memberCount: 1);
   }
 
-  Future<List<Group>> getUserGroups({bool includeArchived = false}) async {
+  Future<List<Group>> getUserGroups({bool includeArchived = false}) {
+    return cachedRead<List<Group>>(
+      key: 'user_groups:$includeArchived',
+      live: () => _getUserGroupsLive(includeArchived: includeArchived),
+      toCache: (list) => list.map((g) => g.toCache()).toList(),
+      fromCache: (j) => (j as List)
+          .map((m) => Group.fromCache((m as Map).cast<String, dynamic>()))
+          .toList(),
+    );
+  }
+
+  Future<List<Group>> _getUserGroupsLive({bool includeArchived = false}) async {
     final memberships = await _client
         .from('group_members')
         .select('group_id')
@@ -101,7 +113,17 @@ class GroupsService {
     return result;
   }
 
-  Future<GroupDetail> getGroupDetails(String groupId) async {
+  Future<GroupDetail> getGroupDetails(String groupId) {
+    return cachedRead<GroupDetail>(
+      key: 'group_details:$groupId',
+      live: () => _getGroupDetailsLive(groupId),
+      toCache: (d) => d.toCache(),
+      fromCache: (j) =>
+          GroupDetail.fromCache((j as Map).cast<String, dynamic>()),
+    );
+  }
+
+  Future<GroupDetail> _getGroupDetailsLive(String groupId) async {
     final groupRow = await _client
         .from('groups')
         .select()

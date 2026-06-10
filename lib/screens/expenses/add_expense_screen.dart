@@ -75,10 +75,15 @@ class AddExpenseScreen extends ConsumerStatefulWidget {
   final String groupId;
   final String groupName;
 
+  /// When set, the screen opens in edit mode: the form is prefilled from this
+  /// expense and submitting rewrites it instead of creating a new one.
+  final EditableExpense? editExpense;
+
   const AddExpenseScreen({
     super.key,
     required this.groupId,
     required this.groupName,
+    this.editExpense,
   });
 
   @override
@@ -145,9 +150,20 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     super.dispose();
   }
 
+  bool get _isEditing => widget.editExpense != null;
+
+  static String _fmt(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toStringAsFixed(2);
+
   void _initMembers(List<GroupMember> members) {
     if (_membersInitialized) return;
     _membersInitialized = true;
+
+    final edit = widget.editExpense;
+    if (edit != null) {
+      _prefillFromEdit(edit, members);
+      return;
+    }
 
     _participants.addAll(members.map((m) {
       final isYou = m.id == _currentUserId;
@@ -161,6 +177,46 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     _selectedPayerIndex =
         _participants.indexWhere((p) => p.id == _currentUserId);
     if (_selectedPayerIndex < 0) _selectedPayerIndex = 0;
+  }
+
+  void _prefillFromEdit(EditableExpense edit, List<GroupMember> members) {
+    _titleController.text = edit.title;
+    _amountController.text = _fmt(edit.totalAmount);
+    _selectedCategory = _categories.any((c) => c.name == edit.category)
+        ? edit.category
+        : 'Other';
+    _noteController.text = edit.note ?? '';
+    _isMultiPayer = edit.isMultiPayer;
+    _isCustomSplit = edit.isCustomSplit;
+
+    final memberIds = members.map((m) => m.id).toSet();
+
+    for (final p in edit.participants) {
+      final part = _Participant(
+        id: p.userId,
+        name: p.isYou ? 'You' : p.name,
+        isYou: p.isYou,
+        removable: !memberIds.contains(p.userId),
+      );
+      part.includedInSplit = p.includedInSplit;
+      part.paidController.text = _fmt(p.paid);
+      part.owedController.text = _fmt(p.owed);
+      _participants.add(part);
+    }
+    for (final g in edit.guests) {
+      final entry = _GuestEntry();
+      entry.nameCtrl.text = g.name;
+      entry.phoneCtrl.text = g.phone;
+      entry.amountCtrl.text = _fmt(g.owed);
+      entry.paidCtrl.text = _fmt(g.paid);
+      _guests.add(entry);
+    }
+
+    final payerId = edit.singlePayerId;
+    final idx = payerId != null
+        ? _participants.indexWhere((p) => p.id == payerId)
+        : _participants.indexWhere((p) => p.isYou);
+    _selectedPayerIndex = idx >= 0 ? idx : 0;
   }
 
   void _recompute() {
@@ -318,33 +374,54 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
         .map((p) => {'userId': p.id, 'amountOwed': p.owedAmount})
         .toList();
 
+    final singlePayerId =
+        _isMultiPayer ? null : _participants[_selectedPayerIndex].id;
+    final note = _noteController.text.trim().isEmpty
+        ? null
+        : _noteController.text.trim();
+
     setState(() => _isLoading = true);
     try {
-      await ExpensesService().addExpenseV2(
-        groupId: widget.groupId,
-        title: _titleController.text.trim(),
-        totalAmount: _totalAmount,
-        isMultiPayer: _isMultiPayer,
-        singlePayerId:
-            _isMultiPayer ? null : _participants[_selectedPayerIndex].id,
-        payerAmounts: _isMultiPayer ? payerAmounts : [],
-        splitAmounts: splitAmounts,
-        isEqualSplit: !_isCustomSplit,
-        category: _selectedCategory,
-        note: _noteController.text.trim().isEmpty
-            ? null
-            : _noteController.text.trim(),
-        isCustom: false,
-        guestSplits: guestInputs,
-      );
+      if (_isEditing) {
+        await ExpensesService().updateExpenseFull(
+          expenseId: widget.editExpense!.expenseId,
+          title: _titleController.text.trim(),
+          totalAmount: _totalAmount,
+          isMultiPayer: _isMultiPayer,
+          singlePayerId: singlePayerId,
+          payerAmounts: _isMultiPayer ? payerAmounts : [],
+          splitAmounts: splitAmounts,
+          category: _selectedCategory,
+          note: note,
+          guestSplits: guestInputs,
+        );
+      } else {
+        await ExpensesService().addExpenseV2(
+          groupId: widget.groupId,
+          title: _titleController.text.trim(),
+          totalAmount: _totalAmount,
+          isMultiPayer: _isMultiPayer,
+          singlePayerId: singlePayerId,
+          payerAmounts: _isMultiPayer ? payerAmounts : [],
+          splitAmounts: splitAmounts,
+          isEqualSplit: !_isCustomSplit,
+          category: _selectedCategory,
+          note: note,
+          isCustom: false,
+          guestSplits: guestInputs,
+        );
+      }
       if (mounted) {
-        _showSnackBar('Expense added!', isSuccess: true);
+        _showSnackBar(_isEditing ? 'Expense updated!' : 'Expense added!',
+            isSuccess: true);
         Future.delayed(const Duration(milliseconds: 600), () {
-          if (mounted) Navigator.of(context).pop();
+          if (mounted) Navigator.of(context).pop(_isEditing ? true : null);
         });
       }
     } catch (e) {
-      if (mounted) _showSnackBar('Failed to add expense: $e');
+      if (mounted) {
+        _showSnackBar('Failed to ${_isEditing ? 'update' : 'add'} expense: $e');
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -510,7 +587,7 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text('Add Expense'),
+        title: Text(_isEditing ? 'Edit Expense' : 'Add Expense'),
         actions: [
           detailAsync.when(
             data: (_) => IconButton(
@@ -1389,8 +1466,8 @@ class _AddExpenseScreenState extends ConsumerState<AddExpenseScreen> {
                 child: CircularProgressIndicator(
                     color: Colors.black, strokeWidth: 2.5),
               )
-            : const Text('Add Expense',
-                style: TextStyle(
+            : Text(_isEditing ? 'Save Changes' : 'Add Expense',
+                style: const TextStyle(
                     color: Colors.black,
                     fontWeight: FontWeight.bold,
                     fontSize: 16)),
