@@ -293,10 +293,9 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
               expense: expense,
               onTap: () => _openExpense(expense),
             );
-            // Only the payer can manage their own expense via swipe: swipe to
-            // archive (only allowed once everyone has settled). Deletion lives
-            // in the expense detail screens.
-            if (!expense.isPayer) return card;
+            // Anyone on the expense can swipe to archive it, settled or not —
+            // the confirm dialog warns first when debts are still outstanding.
+            // Deletion lives in the expense detail screens.
             return Dismissible(
               key: Key(expense.id),
               direction: DismissDirection.startToEnd,
@@ -319,14 +318,25 @@ class _RecentActivityListState extends ConsumerState<_RecentActivityList> {
     );
   }
 
-  /// Confirms then archives an expense. Returns true only when the archive
-  /// actually succeeds, so the row is dismissed; on cancel or failure (e.g. not
-  /// everyone has settled) the row stays put and the error is surfaced.
+  /// Confirms then archives an expense. Warns first when the expense still has
+  /// outstanding debts. Returns true only when the archive actually succeeds, so
+  /// the row is dismissed; on cancel or failure the row stays put and the error
+  /// is surfaced.
   Future<bool> _confirmArchive(RecentExpense expense) async {
-    final confirmed = await showArchiveDialog(context);
+    final service = ref.read(expensesServiceProvider);
+
+    bool unsettled = false;
+    try {
+      unsettled = await service.hasUnsettledDebts(expense.id);
+    } catch (_) {
+      // If the check fails, fall back to the standard prompt.
+    }
+    if (!mounted) return false;
+
+    final confirmed = await showArchiveDialog(context, unsettled: unsettled);
     if (confirmed != true) return false;
     try {
-      await ref.read(expensesServiceProvider).archiveExpense(expense.id);
+      await service.archiveExpense(expense.id);
       return true;
     } catch (e) {
       if (mounted) ErrorHandler.showError(context, e);

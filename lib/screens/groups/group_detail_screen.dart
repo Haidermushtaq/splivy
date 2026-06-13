@@ -179,8 +179,13 @@ class _GroupDetailScreenState extends ConsumerState<GroupDetailScreen> {
                 'groupName': widget.groupName,
               },
             )
-            .then((_) =>
-                ref.invalidate(groupDetailProvider(widget.groupId))),
+            .then((_) {
+              // Re-subscribe the expense stream so the new expense shows
+              // immediately instead of waiting on a realtime push (which can
+              // lag or drop on mobile and makes the add look like it failed).
+              ref.invalidate(groupExpensesStreamProvider(widget.groupId));
+              ref.invalidate(groupDetailProvider(widget.groupId));
+            }),
         backgroundColor: _accent,
         icon: const Icon(Icons.add, color: Colors.black),
         label: const Text(

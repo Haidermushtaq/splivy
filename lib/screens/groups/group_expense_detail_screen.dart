@@ -152,7 +152,13 @@ class _GroupExpenseDetailScreenState
           IconButton(
             icon: const Icon(Icons.edit_outlined, color: _accent),
             tooltip: 'Edit expense',
-            onPressed: _detail == null ? null : () => _editExpense(_detail!),
+            // Always tappable: the AppBar isn't rebuilt when the FutureBuilder
+            // body resolves, so gating on `_detail` here would leave the button
+            // permanently disabled. Read the loaded detail at tap time instead.
+            onPressed: () {
+              final detail = _detail;
+              if (detail != null) _editExpense(detail);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline, color: _red),

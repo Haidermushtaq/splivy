@@ -126,15 +126,18 @@ Future<bool?> showLogoutDialog(BuildContext context) {
   );
 }
 
-Future<bool?> showArchiveDialog(BuildContext context) {
+Future<bool?> showArchiveDialog(BuildContext context, {bool unsettled = false}) {
   return showConfirmDialog(
     context,
     title: 'Archive Expense',
-    message:
-        'This expense is fully settled. Archive it to keep your list clean? You can view archived expenses anytime.',
-    icon: const Icon(Icons.archive_outlined, color: _amber),
+    message: unsettled
+        ? 'This expense still has unsettled debts. Archiving hides it for '
+            'everyone on it, but the debts stay on record. Archive anyway?'
+        : 'This expense is fully settled. Archive it to keep your list clean? '
+            'You can view archived expenses anytime.',
+    icon: Icon(Icons.archive_outlined, color: unsettled ? _danger : _amber),
     confirmText: 'Archive',
-    isDangerous: false,
+    isDangerous: unsettled,
   );
 }
 

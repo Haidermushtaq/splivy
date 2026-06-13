@@ -1300,30 +1300,40 @@ class ExpensesService {
         .eq('id', debtId);
   }
 
-  /// Archives any expense (group or one-time) once every debt on it is settled.
-  /// Throws if any registered-user split or guest split is still outstanding.
+  /// Whether [expenseId] still has any outstanding debt (registered-user split
+  /// or guest split). Callers use this to warn before archiving an unsettled
+  /// expense; archiving itself is not blocked.
+  Future<bool> hasUnsettledDebts(String expenseId) async {
+    final results = await Future.wait<dynamic>([
+      _client
+          .from('expense_splits')
+          .select('id')
+          .eq('expense_id', expenseId)
+          .eq('is_settled', false),
+      _client
+          .from('guest_splits')
+          .select('id')
+          .eq('expense_id', expenseId)
+          .eq('is_settled', false),
+    ]);
+    return (results[0] as List).isNotEmpty || (results[1] as List).isNotEmpty;
+  }
+
+  /// Archives any expense (group or one-time). Anyone on the expense may archive
+  /// it, whether or not every debt is settled — the UI warns first when there
+  /// are still outstanding debts. The expense drops out of the activity feed but
+  /// its debts remain on record and can be restored by unarchiving.
   Future<void> archiveExpense(String expenseId) async {
-    final unsettledGuests = await _client
-        .from('guest_splits')
-        .select('id')
-        .eq('expense_id', expenseId)
-        .eq('is_settled', false);
-
-    final unsettledFriends = await _client
-        .from('expense_splits')
-        .select('id')
-        .eq('expense_id', expenseId)
-        .eq('is_settled', false);
-
-    if ((unsettledGuests as List).isNotEmpty ||
-        (unsettledFriends as List).isNotEmpty) {
-      throw Exception('Everyone must be settled before archiving');
-    }
-
-    await _client
+    final updated = await _client
         .from('expenses')
         .update({'is_archived': true})
-        .eq('id', expenseId);
+        .eq('id', expenseId)
+        .select('id');
+    if ((updated as List).isEmpty) {
+      throw Exception(
+          "You can't archive this expense — only the person who created a "
+          'one-time expense, or a member of the group, can archive it.');
+    }
   }
 
   Future<void> archiveCustomExpense(String expenseId) =>
